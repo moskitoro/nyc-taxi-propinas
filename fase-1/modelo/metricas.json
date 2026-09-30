@@ -1,0 +1,94 @@
+{
+  "fecha": "2026-09-30 04:36",
+  "modelo": "Gradient Boosting ajustado",
+  "hiperparametros": {
+    "min_samples_leaf": 100,
+    "max_leaf_nodes": 31,
+    "max_iter": 300,
+    "learning_rate": 0.1,
+    "l2_regularization": 0.0
+  },
+  "umbral_propina": 0.2,
+  "umbral_decision": 0.5,
+  "variables_numericas": [
+    "fare_amount",
+    "trip_distance",
+    "duracion_min",
+    "velocidad_mph",
+    "tarifa_por_milla",
+    "extra",
+    "tolls_amount",
+    "passenger_count",
+    "hora_sin",
+    "hora_cos",
+    "dia_semana",
+    "fin_de_semana",
+    "pickup_latitude",
+    "pickup_longitude",
+    "dropoff_latitude",
+    "dropoff_longitude",
+    "dist_centro_recogida",
+    "dist_centro_destino",
+    "aeropuerto",
+    "coords_faltantes"
+  ],
+  "variables_categoricas": [
+    "vendorid",
+    "ratecodeid"
+  ],
+  "filas_entrenamiento": 313292,
+  "filas_prueba": 78323,
+  "metricas_prueba": {
+    "roc_auc": 0.6661,
+    "exactitud": 0.6092,
+    "exactitud_balanceada": 0.6106,
+    "precision": 0.7778,
+    "recall": 0.6069,
+    "f1": 0.6818,
+    "f1_macro": 0.5878
+  },
+  "metricas_prueba_todos": {
+    "Base (clase mayoritaria)": {
+      "roc_auc": 0.5,
+      "exactitud": 0.6899,
+      "exactitud_balanceada": 0.5,
+      "precision": 0.6899,
+      "recall": 1.0,
+      "f1": 0.8165,
+      "f1_macro": 0.4082
+    },
+    "Regresión logística": {
+      "roc_auc": 0.5994,
+      "exactitud": 0.5816,
+      "exactitud_balanceada": 0.5729,
+      "precision": 0.7465,
+      "recall": 0.5958,
+      "f1": 0.6627,
+      "f1_macro": 0.5559
+    },
+    "Gradient Boosting": {
+      "roc_auc": 0.6658,
+      "exactitud": 0.6084,
+      "exactitud_balanceada": 0.6099,
+      "precision": 0.7773,
+      "recall": 0.606,
+      "f1": 0.681,
+      "f1_macro": 0.587
+    },
+    "Gradient Boosting ajustado": {
+      "roc_auc": 0.6661,
+      "exactitud": 0.6092,
+      "exactitud_balanceada": 0.6106,
+      "precision": 0.7778,
+      "recall": 0.6069,
+      "f1": 0.6818,
+      "f1_macro": 0.5878
+    }
+  },
+  "versiones": {
+    "python": "3.13.15",
+    "pandas": "2.2.3",
+    "scikit-learn": "1.6.1",
+    "numpy": "2.1.3"
+  }
+}
