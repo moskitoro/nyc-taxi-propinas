@@ -1,7 +1,8 @@
 # Predicción de propina generosa en taxis de Nueva York
 
 **Proyecto Integrado – Modelos y Simulación de Sistemas I – Universidad de Antioquia (2026)**
-Docente: Andrés Felipe Parra Barragán
+
+**Docente:** Andrés Felipe Parra Barragán
 
 | Integrante | Correo |
 |---|---|
@@ -25,8 +26,8 @@ Predecir si un pasajero de taxi amarillo en Nueva York dejará una **propina gen
 - **Fuente:** [NYC Yellow Taxi Trip Data](https://www.kaggle.com/datasets/elemento/nyc-yellow-taxi-trip-data) (Kaggle), construido a partir de los *Trip Record Data* de la NYC Taxi and Limousine Commission (TLC).
 - **Archivo usado:** `yellow_tripdata_2015-01.csv` (enero de 2015), con **12.748.986 viajes** y **19 columnas**.
 - **Filtro:** solo viajes **pagados con tarjeta** y con tarifa mayor a cero (7.880.666 registros). En los registros de la TLC las propinas en efectivo no quedan registradas (aparecen como cero); incluir esos viajes haría que el modelo aprendiera el método de pago en lugar del comportamiento de propina.
-- **Muestra de trabajo:** muestra aleatoria reproducible del 5 % de los viajes filtrados (semilla 42), leída por bloques para no cargar los 2 GB en memoria.
-- **Balance de clases:** aproximadamente dos tercios de los viajes tienen propina generosa y un tercio no.
+- **Muestra de trabajo:** muestra aleatoria reproducible del 5 % de los viajes filtrados (semilla 42), leída por bloques para no cargar los 2 GB en memoria. Después de la limpieza quedan **391.615 viajes**: 313.292 para entrenamiento y 78.323 para prueba.
+- **Balance de clases:** 69 % de los viajes tienen propina generosa y 31 % no.
 
 Los datos **no se suben al repositorio** por su tamaño: el notebook los descarga automáticamente desde Kaggle.
 
@@ -101,14 +102,43 @@ jupyter notebook fase-1/fase1_modelo_predictivo.ipynb
 
 ### Resultados (conjunto de prueba)
 
-| Modelo | ROC-AUC | Exactitud balanceada | F1 macro |
-|---|---|---|---|
-| Base (clase mayoritaria) | 0,500 | 0,500 | — |
-| Regresión logística | — | — | — |
-| Gradient Boosting | — | — | — |
-| Gradient Boosting ajustado | — | — | — |
+| Modelo | ROC-AUC | Exactitud balanceada | F1 macro | Exactitud |
+|---|---|---|---|---|
+| Base (clase mayoritaria) | 0,500 | 0,500 | 0,408 | 0,690 |
+| Regresión logística | 0,599 | 0,573 | 0,556 | 0,582 |
+| Gradient Boosting | 0,666 | 0,610 | 0,587 | 0,608 |
+| **Gradient Boosting ajustado** (elegido) | **0,666** | **0,611** | **0,588** | 0,609 |
 
-*Los valores se completan con `fase-1/modelo/metricas.json`, que genera el notebook al ejecutarse.*
+Detalle por clase del modelo elegido:
+
+| Clase | Precisión | Recall | F1 | Viajes en prueba |
+|---|---|---|---|---|
+| No generosa (0) | 0,413 | 0,614 | 0,494 | 24.288 |
+| Generosa (1) | 0,778 | 0,607 | 0,682 | 54.035 |
+
+**Hiperparámetros elegidos:** `learning_rate = 0.1`, `max_iter = 300`, `max_leaf_nodes = 31`, `min_samples_leaf = 100`, `l2_regularization = 0.0`, `class_weight = "balanced"`.
+
+**Sobreajuste:** el ROC-AUC en entrenamiento es 0,683 y en prueba 0,666 (diferencia de 0,017); en las demás métricas la diferencia es de alrededor de una centésima. El modelo generaliza a viajes que no vio.
+
+### Interpretación
+
+- **El modelo supera al modelo base** en las métricas que no se dejan engañar por la clase mayoritaria: ROC-AUC (0,666 frente a 0,500), exactitud balanceada (0,611 frente a 0,500) y F1 macro (0,588 frente a 0,408).
+- **Por qué la exactitud es menor que la del modelo base:** el modelo base obtiene 69 % de exactitud solo por predecir siempre "generosa", sin detectar nunca un viaje con propina baja (recall de 0 en esa clase). Con el balanceo de clases, el modelo elegido detecta el **61 % de los viajes con propina no generosa** a cambio de equivocarse más en la clase mayoritaria. Para el uso del problema (anticipar qué viajes dejarán poca propina) esa detección es lo que importa.
+- **Gradient Boosting frente a regresión logística:** el modelo de árboles gana cerca de 0,07 de ROC-AUC, lo que confirma que las relaciones entre las variables y la propina no son lineales, como se observó en el análisis exploratorio.
+- **Techo del problema:** un ROC-AUC alrededor de 0,67 indica que las características del viaje explican una parte del comportamiento de propina, pero no todo. La decisión depende también de factores personales que no están en los datos. Un ROC-AUC mucho más alto con estas variables sería una señal de fuga de información, no de un mejor modelo.
+- La importancia de cada variable se muestra en la sección 13 del notebook.
+
+*Todas las métricas están en `fase-1/modelo/metricas.json`.*
+
+### Reproducibilidad
+
+El modelo se entrenó en Google Colab con Python 3.13, pandas 2.2.3, NumPy 2.1.3 y **scikit-learn 1.6.1**. Para cargar el archivo `.joblib` se debe usar la misma versión de scikit-learn (fijada en `requirements.txt`):
+
+```python
+import joblib
+modelo = joblib.load("fase-1/modelo/modelo_propina_generosa.joblib")
+probabilidad = modelo.predict_proba(X)[:, 1]   # X con las variables de la sección "Variables"
+```
 
 ### Limitaciones
 
