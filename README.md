@@ -1,19 +1,21 @@
 # Predicción de propina generosa en taxis de Nueva York
 
-**Proyecto Integrado – Modelos y Simulación de Sistemas I – Universidad de Antioquia (2026)**
+## Proyecto Integrado: Modelos y Simulación de Sistemas I – Universidad de Antioquia (2026)
 
 **Docente:** Andrés Felipe Parra Barragán
 
 | Integrante | Correo |
-|---|---|
-| Oscar Julian Toro Arroyave | o.toro@udea.edu.co |
-| Esteban Barrera Sanabria | esteban.barreras@udea.edu.co |
+| --- | --- |
+| Oscar Julian Toro Arroyave | <o.toro@udea.edu.co> |
+| Esteban Barrera Sanabria | <esteban.barreras@udea.edu.co> |
 
 ---
 
 ## 1. Problema
 
-Predecir si un pasajero de taxi amarillo en Nueva York dejará una **propina generosa** a partir de las características de su viaje (distancia, duración, hora, zona, número de pasajeros, tarifa, entre otras). Es útil para que conductores y plataformas de transporte anticipen el comportamiento de propina de sus usuarios.
+Predecir si un pasajero de taxi amarillo en Nueva York dejará una propina generosa a partir de las características de su viaje (distancia, duración, hora, zona, número de pasajeros, tarifa, entre otras).
+
+Es útil para que conductores y plataformas de transporte anticipen el comportamiento de propina de sus usuarios.
 
 - **Tipo de problema:** clasificación binaria (aprendizaje supervisado).
 - **Variable objetivo:** `propina_generosa`
@@ -30,11 +32,11 @@ Predecir si un pasajero de taxi amarillo en Nueva York dejará una **propina gen
 - **Balance de clases:** 69 % de los viajes tienen propina generosa y 31 % no.
 - **Valores faltantes:** el archivo casi no tiene `NaN` explícitos (solo 3 en `improvement_surcharge`), pero los faltantes vienen **codificados como coordenadas en (0, 0) o fuera de Nueva York**: el GPS no registró la ubicación. Afectan al **1,9 %** de las coordenadas de recogida y al **1,75 %** de las de destino, dentro del rango de 0,1 % a 2 % que pide el proyecto. El notebook los convierte en `NaN` y los imputa dentro del pipeline (ver sección 4, *Calidad de datos*).
 
-Los datos **no se suben al repositorio** por su tamaño: el notebook los descarga automáticamente desde Kaggle.
+Los datos no se suben al repositorio por su tamaño: el notebook los descarga automáticamente desde Kaggle.
 
 ## 3. Estructura del repositorio
 
-```
+```bash
 nyc-taxi-propinas/
 ├── README.md
 ├── requirements.txt
@@ -53,7 +55,7 @@ nyc-taxi-propinas/
 
 [![Abrir en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/moskitoro/nyc-taxi-propinas/blob/main/fase-1/fase1_modelo_predictivo.ipynb)
 
-Abrir el enlace y usar *Entorno de ejecución → Ejecutar todas*. Tarda entre 10 y 15 minutos.
+Abrir el enlace y usar *Entorno de ejecución → Ejecutar todas*.
 
 **Opción B – Local:**
 
@@ -84,7 +86,7 @@ jupyter notebook fase-1/fase1_modelo_predictivo.ipynb
 **Excluidas:**
 
 | Variable | Motivo |
-|---|---|
+| --- | --- |
 | `tip_amount` | Es la propina; con ella se construye la variable objetivo (fuga directa). |
 | `total_amount` | Incluye la propina (fuga directa). |
 | `payment_type` | Después del filtro solo vale 1 (tarjeta); no aporta información. |
@@ -104,7 +106,7 @@ jupyter notebook fase-1/fase1_modelo_predictivo.ipynb
 ### Resultados (conjunto de prueba)
 
 | Modelo | ROC-AUC | Exactitud balanceada | F1 macro | Exactitud |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | Base (clase mayoritaria) | 0,500 | 0,500 | 0,408 | 0,690 |
 | Regresión logística | 0,599 | 0,573 | 0,556 | 0,582 |
 | Gradient Boosting | 0,666 | 0,610 | 0,587 | 0,608 |
@@ -113,7 +115,7 @@ jupyter notebook fase-1/fase1_modelo_predictivo.ipynb
 Detalle por clase del modelo elegido:
 
 | Clase | Precisión | Recall | F1 | Viajes en prueba |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | No generosa (0) | 0,413 | 0,614 | 0,494 | 24.288 |
 | Generosa (1) | 0,778 | 0,607 | 0,682 | 54.035 |
 
@@ -144,6 +146,9 @@ probabilidad = modelo.predict_proba(X)[:, 1]   # X con las variables de la secci
 ### Limitaciones
 
 1. Solo aplica a viajes pagados con tarjeta; no se extiende a pagos en efectivo.
+
 2. Solo enero de 2015: el comportamiento de propina puede cambiar según la temporada.
+
 3. La propina depende de factores personales que no están en los datos (costumbres del pasajero, satisfacción con el servicio), lo que pone un límite a lo que cualquier modelo puede predecir con las características del viaje.
+
 4. La ubicación viene como coordenadas y no como zonas; se aproxima con distancias a puntos de referencia.
