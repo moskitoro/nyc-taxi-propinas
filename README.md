@@ -28,6 +28,7 @@ Predecir si un pasajero de taxi amarillo en Nueva York dejará una **propina gen
 - **Filtro:** solo viajes **pagados con tarjeta** y con tarifa mayor a cero (7.880.666 registros). En los registros de la TLC las propinas en efectivo no quedan registradas (aparecen como cero); incluir esos viajes haría que el modelo aprendiera el método de pago en lugar del comportamiento de propina.
 - **Muestra de trabajo:** muestra aleatoria reproducible del 5 % de los viajes filtrados (semilla 42), leída por bloques para no cargar los 2 GB en memoria. Después de la limpieza quedan **391.615 viajes**: 313.292 para entrenamiento y 78.323 para prueba.
 - **Balance de clases:** 69 % de los viajes tienen propina generosa y 31 % no.
+- **Valores faltantes:** el archivo casi no tiene `NaN` explícitos (solo 3 en `improvement_surcharge`), pero los faltantes vienen **codificados como coordenadas en (0, 0) o fuera de Nueva York**: el GPS no registró la ubicación. Afectan al **1,9 %** de las coordenadas de recogida y al **1,75 %** de las de destino, dentro del rango de 0,1 % a 2 % que pide el proyecto. El notebook los convierte en `NaN` y los imputa dentro del pipeline (ver sección 4, *Calidad de datos*).
 
 Los datos **no se suben al repositorio** por su tamaño: el notebook los descarga automáticamente desde Kaggle.
 
