@@ -89,7 +89,14 @@ Cada `metadatos.json` registra:
 - versiones de Python, scikit-learn, pandas y NumPy;
 - el **sha256** del archivo del modelo. `predict.py` lo verifica al cargar y se niega a usar un modelo alterado.
 
-**v1** es el modelo entrenado en la Fase 1 (ROC-AUC 0,666 en prueba). Al ejecutar `train.py` se crea `v2`, y así sucesivamente. Para volver a una versión anterior: `python predict.py --entrada ... --version v1`.
+Versiones actuales del repositorio:
+
+| Versión | Origen | Fecha | ROC-AUC prueba |
+|---|---|---|---|
+| `v1` | Modelo entrenado en la Fase 1 con el notebook (Colab) | 2026-09-30 | 0,6661 |
+| `v2` (actual) | `python train.py --descargar` en Colab | 2026-11-06 (hora UTC) | 0,6661 |
+
+Para usar una versión anterior: `python predict.py --entrada ... --version v1`. Cada nuevo entrenamiento crea `v3`, `v4`, …
 
 ## Docker
 
@@ -98,9 +105,12 @@ cd fase-2
 docker build -t nyc-taxi-propinas:fase2 .
 ```
 
+La imagen ya incluye las versiones de `modelos/`, así que puede predecir sin montar nada:
+
 ```bash
-# Predecir con el ejemplo incluido en la imagen
-docker run --rm -v "$(pwd)/modelos:/app/modelos" nyc-taxi-propinas:fase2 predict.py --entrada ejemplos/viajes_ejemplo.csv
+# Predecir con el ejemplo incluido en la imagen (versión actual, o una específica)
+docker run --rm nyc-taxi-propinas:fase2 predict.py --entrada ejemplos/viajes_ejemplo.csv
+docker run --rm nyc-taxi-propinas:fase2 predict.py --entrada ejemplos/viajes_ejemplo.csv --version v1
 
 # Entrenar (el CSV va en fase-2/datos/; la nueva versión queda en fase-2/modelos/)
 docker run --rm -v "$(pwd)/datos:/app/datos" -v "$(pwd)/modelos:/app/modelos" \
@@ -124,3 +134,37 @@ Las pruebas usan datos sintéticos con la misma estructura del CSV de la TLC, as
 |---|---|
 | `test_datos.py` | Umbral del 20 % (inclusivo); cálculo de duración, velocidad, hora cíclica, día y distancia a Midtown en un viaje conocido; detección de viajes al aeropuerto; coordenadas en (0, 0) convertidas en faltantes; eliminación de registros imposibles; **ninguna variable con fuga** entre las predictoras; la propina no altera las variables de entrada; predicción sin perder filas; error claro si falta una columna. |
 | `test_modelo.py` | `train.py` crea una versión con metadatos completos; el modelo supera al azar; reentrenar crea `v2` sin borrar `v1`; un modelo modificado se detecta por su sha256; `predict.py` devuelve una fila por viaje con probabilidades en [0, 1]; el umbral de decisión funciona; una versión inexistente da error. |
+
+## Resultados y verificación
+
+### `train.py` reproduce exactamente la Fase 1
+
+Al ejecutar `python train.py --descargar` en Colab (misma muestra del 5 %, semilla 42 e hiperparámetros) se obtuvo `v2`, con las **mismas métricas** que el modelo del notebook:
+
+| Métrica | Fase 1 – notebook (`v1`) | `train.py` (`v2`) |
+|---|---|---|
+| Viajes de entrenamiento / prueba | 313.292 / 78.323 | 313.292 / 78.323 |
+| ROC-AUC prueba | 0,6661 | 0,6661 |
+| ROC-AUC entrenamiento | 0,6831 | 0,6831 |
+| Exactitud balanceada | 0,6106 | 0,6106 |
+| F1 macro | 0,5878 | 0,5878 |
+| Tiempo de entrenamiento | — | 91 s |
+
+Además, `v1` y `v2` producen **las mismas probabilidades** sobre `ejemplos/viajes_ejemplo.csv`:
+
+| Tarifa (USD) | Distancia (millas) | Probabilidad `v1` | Probabilidad `v2` | Predicción |
+|---|---|---|---|---|
+| 10,0 | 1,8 | 0,5275 | 0,5275 | 1 |
+| 52,0 | 17,3 | 0,5238 | 0,5238 | 1 |
+| 11,5 | 2,6 | 0,5190 | 0,5190 | 1 |
+| 5,5 | 0,7 | 0,6425 | 0,6425 | 1 |
+| 29,5 | 9,1 | 0,2777 | 0,2777 | 0 |
+
+El último viaje tiene coordenadas en (0, 0): `predict.py` no lo descarta, las trata como faltantes y el pipeline las imputa.
+
+### Ejecución verificada
+
+| Entorno | Construcción | Pruebas | `predict.py` |
+|---|---|---|---|
+| Google Colab (Python 3.13) | — | 16 passed | `v1` y `v2` |
+| Docker Desktop en Windows (imagen `python:3.13-slim`) | `docker build` correcto en 47 s | 16 passed | `v1` y `v2` |
