@@ -1,0 +1,10 @@
+{
+  "actual": "v1",
+  "versiones": [
+    {
+      "version": "v1",
+      "fecha": "2026-09-30 04:36:00",
+      "roc_auc_prueba": 0.6661
+    }
+  ]
+}

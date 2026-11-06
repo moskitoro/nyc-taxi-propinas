@@ -1,154 +1,126 @@
-# Predicción de propina generosa en taxis de Nueva York
+# Fase 2 – Scripts y Docker
 
-## Proyecto Integrado: Modelos y Simulación de Sistemas I – Universidad de Antioquia (2026)
+Convierte el modelo de la Fase 1 en una **aplicación de línea de comandos** que puede entrenarse y generar predicciones sin abrir el notebook. No es un modelo nuevo: `train.py` reproduce exactamente el procesamiento y el modelo elegido en la Fase 1 (Gradient Boosting con `class_weight="balanced"` y los mismos hiperparámetros).
 
-**Docente:** Andrés Felipe Parra Barragán
-
-| Integrante | Correo |
-| --- | --- |
-| Oscar Julian Toro Arroyave | <o.toro@udea.edu.co> |
-| Esteban Barrera Sanabria | <esteban.barreras@udea.edu.co> |
-
----
-
-## 1. Problema
-
-Predecir si un pasajero de taxi amarillo en Nueva York dejará una propina generosa a partir de las características de su viaje (distancia, duración, hora, zona, número de pasajeros, tarifa, entre otras).
-
-Es útil para que conductores y plataformas de transporte anticipen el comportamiento de propina de sus usuarios.
-
-- **Tipo de problema:** clasificación binaria (aprendizaje supervisado).
-- **Variable objetivo:** `propina_generosa`
-  - `1` si la propina es **igual o mayor al 20 %** de la tarifa (`tip_amount / fare_amount >= 0.20`).
-  - `0` si es menor al 20 %.
-- **No es un problema de series temporales:** cada viaje se predice por sí mismo a partir de sus características.
-
-## 2. Datos
-
-- **Fuente:** [NYC Yellow Taxi Trip Data](https://www.kaggle.com/datasets/elemento/nyc-yellow-taxi-trip-data) (Kaggle), construido a partir de los *Trip Record Data* de la NYC Taxi and Limousine Commission (TLC).
-- **Archivo usado:** `yellow_tripdata_2015-01.csv` (enero de 2015), con **12.748.986 viajes** y **19 columnas**.
-- **Filtro:** solo viajes **pagados con tarjeta** y con tarifa mayor a cero (7.880.666 registros). En los registros de la TLC las propinas en efectivo no quedan registradas (aparecen como cero); incluir esos viajes haría que el modelo aprendiera el método de pago en lugar del comportamiento de propina.
-- **Muestra de trabajo:** muestra aleatoria reproducible del 5 % de los viajes filtrados (semilla 42), leída por bloques para no cargar los 2 GB en memoria. Después de la limpieza quedan **391.615 viajes**: 313.292 para entrenamiento y 78.323 para prueba.
-- **Balance de clases:** 69 % de los viajes tienen propina generosa y 31 % no.
-- **Valores faltantes:** el archivo casi no tiene `NaN` explícitos (solo 3 en `improvement_surcharge`), pero los faltantes vienen **codificados como coordenadas en (0, 0) o fuera de Nueva York**: el GPS no registró la ubicación. Afectan al **1,9 %** de las coordenadas de recogida y al **1,75 %** de las de destino, dentro del rango de 0,1 % a 2 % que pide el proyecto. El notebook los convierte en `NaN` y los imputa dentro del pipeline (ver sección 4, *Calidad de datos*).
-
-Los datos no se suben al repositorio por su tamaño: el notebook los descarga automáticamente desde Kaggle.
-
-## 3. Estructura del repositorio
+## Estructura
 
 ```bash
-nyc-taxi-propinas/
-├── README.md
-├── requirements.txt
-└── fase-1/
-    ├── fase1_modelo_predictivo.ipynb   # notebook ejecutable
-    └── modelo/
-        ├── modelo_propina_generosa.joblib   # pipeline entrenado (preprocesamiento + modelo)
-        └── metricas.json                    # métricas, variables y versiones
+fase-2/
+├── train.py                  # entrena y guarda una nueva versión del modelo
+├── predict.py                # predice a partir de un CSV de viajes
+├── Dockerfile                # imagen para entrenar, predecir y probar
+├── requirements.txt          # versiones fijadas (las mismas de la Fase 1)
+├── propinas/                 # código compartido por train.py y predict.py
+│   ├── datos.py              #   carga, limpieza, variables y control de fuga
+│   ├── modelo.py             #   pipeline y métricas
+│   └── versiones.py          #   versionado de modelos
+├── modelos/                  # versiones del modelo
+│   ├── registro.json         #   historial de versiones y versión actual
+│   └── v1/                   #   modelo de la Fase 1
+│       ├── modelo.joblib
+│       └── metadatos.json
+├── ejemplos/
+│   └── viajes_ejemplo.csv    # 5 viajes para probar predict.py
+└── tests/                    # pruebas con pytest
+    ├── conftest.py           #   datos sintéticos (no necesita descargar Kaggle)
+    ├── test_datos.py
+    └── test_modelo.py
 ```
 
-## 4. Fase 1 – Modelo predictivo
+## Instalación (sin Docker)
 
-### Cómo ejecutar
-
-**Opción A – Google Colab (recomendada):**
-
-[![Abrir en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/moskitoro/nyc-taxi-propinas/blob/main/fase-1/fase1_modelo_predictivo.ipynb)
-
-Abrir el enlace y usar *Entorno de ejecución → Ejecutar todas*.
-
-**Opción B – Local:**
+Requiere Python 3.13 (es la versión con la que se entrenó el modelo de la Fase 1).
 
 ```bash
-git clone https://github.com/moskitoro/nyc-taxi-propinas.git
-cd nyc-taxi-propinas
+cd fase-2
 pip install -r requirements.txt
-jupyter notebook fase-1/fase1_modelo_predictivo.ipynb
 ```
 
-### Qué hace el notebook
+## Uso
 
-1. **Carga** por bloques, filtro a pagos con tarjeta y muestreo reproducible.
-2. **Exploración:** distribución de la variable objetivo y de la tasa de propina, tasa de propina generosa por hora, día, proveedor, código de tarifa, pasajeros, distancia y tarifa.
-3. **Calidad de datos:**
-   - Coordenadas en (0, 0) o fuera de Nueva York (≈ 2 % de los viajes): se convierten en **valores faltantes** y se imputan con la mediana dentro del pipeline; se agrega el indicador `coords_faltantes`.
-   - Se eliminan registros imposibles: distancia ≤ 0 o ≥ 100 millas, duración < 1 min o > 3 h, pasajeros fuera de 1 a 6, propina negativa, tarifa ≥ 500 USD, códigos de tarifa inexistentes y velocidades ≥ 80 mph.
-4. **Ingeniería de variables:** duración, velocidad, tarifa por milla, hora cíclica (seno/coseno), día de la semana, fin de semana, distancia a Midtown Manhattan, indicador de aeropuerto (JFK, LaGuardia, Newark).
-5. **Modelos:** modelo base (clase mayoritaria), regresión logística y Gradient Boosting (`HistGradientBoostingClassifier`), con validación cruzada estratificada de 5 particiones y ajuste de hiperparámetros por búsqueda aleatoria.
-6. **Evaluación final** en un conjunto de prueba reservado (20 %), usado una sola vez.
-7. **Importancia de variables** por permutación.
-8. **Guardado** del pipeline completo con `joblib`.
+### Predecir
 
-### Variables
-
-**Predictoras:** `fare_amount`, `trip_distance`, `duracion_min`, `velocidad_mph`, `tarifa_por_milla`, `extra`, `tolls_amount`, `passenger_count`, `hora_sin`, `hora_cos`, `dia_semana`, `fin_de_semana`, coordenadas de recogida y destino, `dist_centro_recogida`, `dist_centro_destino`, `aeropuerto`, `coords_faltantes`, `vendorid`, `ratecodeid`.
-
-**Excluidas:**
-
-| Variable | Motivo |
-| --- | --- |
-| `tip_amount` | Es la propina; con ella se construye la variable objetivo (fuga directa). |
-| `total_amount` | Incluye la propina (fuga directa). |
-| `payment_type` | Después del filtro solo vale 1 (tarjeta); no aporta información. |
-| `mta_tax`, `improvement_surcharge` | Prácticamente constantes. |
-| `store_and_fwd_flag` | Prácticamente constante; describe la transmisión del registro, no el viaje. |
-| Fechas originales | Se reemplazan por variables derivadas (hora, día, duración). |
-
-> **Corrección respecto al informe inicial:** `fare_amount` **sí se usa** como predictora. La tarifa se conoce antes de que el pasajero decida la propina (aparece en la pantalla del taxi), así que no contiene la respuesta. El modelo recibe la tarifa, pero nunca la propina.
-
-### Control de fuga de información
-
-1. Se excluyen todas las variables que contienen la propina (`tip_amount`, `total_amount`) y se verifica con un `assert` en el código.
-2. El conjunto de prueba se separa **antes** de cualquier ajuste y se usa una sola vez al final.
-3. Imputación, escalado y codificación van **dentro de un `Pipeline`**, así que solo aprenden de los datos de entrenamiento en cada partición de la validación cruzada.
-4. Se trabaja solo con pagos con tarjeta para que el modelo no aprenda el método de pago.
-
-### Resultados (conjunto de prueba)
-
-| Modelo | ROC-AUC | Exactitud balanceada | F1 macro | Exactitud |
-| --- | --- | --- | --- | --- |
-| Base (clase mayoritaria) | 0,500 | 0,500 | 0,408 | 0,690 |
-| Regresión logística | 0,599 | 0,573 | 0,556 | 0,582 |
-| Gradient Boosting | 0,666 | 0,610 | 0,587 | 0,608 |
-| **Gradient Boosting ajustado** (elegido) | **0,666** | **0,611** | **0,588** | 0,609 |
-
-Detalle por clase del modelo elegido:
-
-| Clase | Precisión | Recall | F1 | Viajes en prueba |
-| --- | --- | --- | --- | --- |
-| No generosa (0) | 0,413 | 0,614 | 0,494 | 24.288 |
-| Generosa (1) | 0,778 | 0,607 | 0,682 | 54.035 |
-
-**Hiperparámetros elegidos:** `learning_rate = 0.1`, `max_iter = 300`, `max_leaf_nodes = 31`, `min_samples_leaf = 100`, `l2_regularization = 0.0`, `class_weight = "balanced"`.
-
-**Sobreajuste:** el ROC-AUC en entrenamiento es 0,683 y en prueba 0,666 (diferencia de 0,017); en las demás métricas la diferencia es de alrededor de una centésima. El modelo generaliza a viajes que no vio.
-
-### Interpretación
-
-- **El modelo supera al modelo base** en las métricas que no se dejan engañar por la clase mayoritaria: ROC-AUC (0,666 frente a 0,500), exactitud balanceada (0,611 frente a 0,500) y F1 macro (0,588 frente a 0,408).
-- **Por qué la exactitud es menor que la del modelo base:** el modelo base obtiene 69 % de exactitud solo por predecir siempre "generosa", sin detectar nunca un viaje con propina baja (recall de 0 en esa clase). Con el balanceo de clases, el modelo elegido detecta el **61 % de los viajes con propina no generosa** a cambio de equivocarse más en la clase mayoritaria. Para el uso del problema (anticipar qué viajes dejarán poca propina) esa detección es lo que importa.
-- **Gradient Boosting frente a regresión logística:** el modelo de árboles gana cerca de 0,07 de ROC-AUC, lo que confirma que las relaciones entre las variables y la propina no son lineales, como se observó en el análisis exploratorio.
-- **Techo del problema:** un ROC-AUC alrededor de 0,67 indica que las características del viaje explican una parte del comportamiento de propina, pero no todo. La decisión depende también de factores personales que no están en los datos. Un ROC-AUC mucho más alto con estas variables sería una señal de fuga de información, no de un mejor modelo.
-- La importancia de cada variable se muestra en la sección 13 del notebook.
-
-*Todas las métricas están en `fase-1/modelo/metricas.json`.*
-
-### Reproducibilidad
-
-El modelo se entrenó en Google Colab con Python 3.13, pandas 2.2.3, NumPy 2.1.3 y **scikit-learn 1.6.1**. Para cargar el archivo `.joblib` se debe usar la misma versión de scikit-learn (fijada en `requirements.txt`):
-
-```python
-import joblib
-modelo = joblib.load("fase-1/modelo/modelo_propina_generosa.joblib")
-probabilidad = modelo.predict_proba(X)[:, 1]   # X con las variables de la sección "Variables"
+```bash
+python predict.py --entrada ejemplos/viajes_ejemplo.csv
+python predict.py --entrada ejemplos/viajes_ejemplo.csv --salida predicciones.csv
 ```
 
-### Limitaciones
+| Opción | Descripción |
+|---|---|
+| `--entrada` | CSV con los viajes. Usa las columnas de la NYC TLC; la propina **no** se necesita (si viene, se ignora). |
+| `--salida` | CSV donde se guardan las predicciones. Si se omite, se muestran en pantalla. |
+| `--version` | Versión del modelo, por ejemplo `v1`. Por defecto, la actual de `modelos/registro.json`. |
+| `--modelo` | Ruta directa a un `.joblib`, por ejemplo `../fase-1/modelo/modelo_propina_generosa.joblib`. |
+| `--umbral` | Probabilidad mínima para predecir "generosa" (por defecto 0,5). |
 
-1. Solo aplica a viajes pagados con tarjeta; no se extiende a pagos en efectivo.
+Columnas obligatorias de entrada: `VendorID`, `tpep_pickup_datetime`, `tpep_dropoff_datetime`, `passenger_count`, `trip_distance`, `pickup_longitude`, `pickup_latitude`, `RateCodeID`, `dropoff_longitude`, `dropoff_latitude`, `fare_amount`, `extra`, `tolls_amount`.
 
-2. Solo enero de 2015: el comportamiento de propina puede cambiar según la temporada.
+La salida agrega `prob_propina_generosa` (probabilidad entre 0 y 1) y `propina_generosa_predicha` (0 o 1). A diferencia del entrenamiento, `predict.py` **no elimina filas**: los valores imposibles (coordenadas en 0, distancia 0) se tratan como faltantes y el pipeline los imputa.
 
-3. La propina depende de factores personales que no están en los datos (costumbres del pasajero, satisfacción con el servicio), lo que pone un límite a lo que cualquier modelo puede predecir con las características del viaje.
+### Entrenar
 
-4. La ubicación viene como coordenadas y no como zonas; se aproxima con distancias a puntos de referencia.
+Necesita el archivo `yellow_tripdata_2015-01.csv` (2 GB) de [Kaggle](https://www.kaggle.com/datasets/elemento/nyc-yellow-taxi-trip-data).
+
+```bash
+python train.py --datos datos/yellow_tripdata_2015-01.csv
+python train.py --descargar           # lo descarga con kagglehub
+```
+
+| Opción | Descripción |
+|---|---|
+| `--datos` / `--descargar` | Ruta al CSV, o descarga automática desde Kaggle. Una de las dos es obligatoria. |
+| `--fraccion` | Fracción de los viajes con tarjeta que se usa (por defecto 0,05, como en la Fase 1). |
+| `--prueba` | Proporción del conjunto de prueba (por defecto 0,20). |
+| `--semilla` | Semilla aleatoria (por defecto 42). |
+| `--max-iter` | Iteraciones del Gradient Boosting (por defecto 300, como en la Fase 1). |
+| `--modelos` | Carpeta de versiones (por defecto `modelos`). |
+
+Pasos que ejecuta: carga por bloques y filtra pagos con tarjeta → limpia registros imposibles → crea las variables → separa entrenamiento y prueba (80/20 estratificado) **antes** de entrenar → entrena el pipeline → evalúa contra el modelo base → guarda una nueva versión.
+
+## Versionado del modelo
+
+Cada entrenamiento crea una carpeta nueva (`v1`, `v2`, …) y **nunca sobrescribe** las anteriores. `registro.json` guarda el historial y cuál es la versión actual, que es la que usa `predict.py` por defecto.
+
+Cada `metadatos.json` registra:
+
+- fecha, origen de los datos, fracción, semilla y número de filas;
+- hiperparámetros y variables usadas;
+- métricas en entrenamiento y prueba, y las del modelo base;
+- versiones de Python, scikit-learn, pandas y NumPy;
+- el **sha256** del archivo del modelo. `predict.py` lo verifica al cargar y se niega a usar un modelo alterado.
+
+**v1** es el modelo entrenado en la Fase 1 (ROC-AUC 0,666 en prueba). Al ejecutar `train.py` se crea `v2`, y así sucesivamente. Para volver a una versión anterior: `python predict.py --entrada ... --version v1`.
+
+## Docker
+
+```bash
+cd fase-2
+docker build -t nyc-taxi-propinas:fase2 .
+```
+
+```bash
+# Predecir con el ejemplo incluido en la imagen
+docker run --rm -v "$(pwd)/modelos:/app/modelos" nyc-taxi-propinas:fase2 predict.py --entrada ejemplos/viajes_ejemplo.csv
+
+# Entrenar (el CSV va en fase-2/datos/; la nueva versión queda en fase-2/modelos/)
+docker run --rm -v "$(pwd)/datos:/app/datos" -v "$(pwd)/modelos:/app/modelos" \
+  nyc-taxi-propinas:fase2 train.py --datos datos/yellow_tripdata_2015-01.csv
+
+# Pruebas
+docker run --rm nyc-taxi-propinas:fase2 -m pytest -v
+```
+
+En Windows (PowerShell), cambie `$(pwd)` por `${PWD}`. Las carpetas `datos` y `modelos` se montan como volúmenes: así el CSV no se copia a la imagen y los modelos entrenados quedan en el computador.
+
+## Pruebas
+
+```bash
+python -m pytest -v
+```
+
+Las pruebas usan datos sintéticos con la misma estructura del CSV de la TLC, así que no necesitan descargar nada. Cubren:
+
+| Archivo | Qué verifica |
+|---|---|
+| `test_datos.py` | Umbral del 20 % (inclusivo); cálculo de duración, velocidad, hora cíclica, día y distancia a Midtown en un viaje conocido; detección de viajes al aeropuerto; coordenadas en (0, 0) convertidas en faltantes; eliminación de registros imposibles; **ninguna variable con fuga** entre las predictoras; la propina no altera las variables de entrada; predicción sin perder filas; error claro si falta una columna. |
+| `test_modelo.py` | `train.py` crea una versión con metadatos completos; el modelo supera al azar; reentrenar crea `v2` sin borrar `v1`; un modelo modificado se detecta por su sha256; `predict.py` devuelve una fila por viaje con probabilidades en [0, 1]; el umbral de decisión funciona; una versión inexistente da error. |
