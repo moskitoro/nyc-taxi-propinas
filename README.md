@@ -1,5 +1,7 @@
 # Predicción de propina generosa en taxis de Nueva York
 
+[![Pruebas](https://github.com/moskitoro/nyc-taxi-propinas/actions/workflows/pruebas.yml/badge.svg)](https://github.com/moskitoro/nyc-taxi-propinas/actions/workflows/pruebas.yml)
+
 ## Proyecto Integrado: Modelos y Simulación de Sistemas I – Universidad de Antioquia (2026)
 
 **Docente:** Andrés Felipe Parra Barragán
@@ -40,6 +42,7 @@ Los datos no se suben al repositorio por su tamaño: el notebook los descarga au
 nyc-taxi-propinas/
 ├── README.md
 ├── requirements.txt
+├── .github/workflows/pruebas.yml      # pruebas y construcción de Docker automáticas en GitHub
 ├── fase-1/
 │   ├── fase1_modelo_predictivo.ipynb   # notebook ejecutable
 │   └── modelo/
@@ -173,7 +176,7 @@ El modelo de la Fase 1 se convirtió en una aplicación de línea de comandos. L
 | Contenedor | `fase-2/Dockerfile` |
 | Versionado del modelo | `fase-2/modelos/` (`registro.json` + una carpeta por versión con su `metadatos.json` y sha256) |
 | Reproducibilidad | `train.py` reproduce exactamente las métricas de la Fase 1 (ROC-AUC 0,6661); verificado en Colab y en Docker |
-| Pruebas | `fase-2/tests/` (16 pruebas con pytest) |
+| Pruebas | `fase-2/tests/` (34 pruebas con pytest), corridas automáticamente por GitHub Actions en cada cambio |
 
 Uso rápido:
 

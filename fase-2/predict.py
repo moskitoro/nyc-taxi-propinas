@@ -13,12 +13,20 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 import joblib
 import pandas as pd
 
 from propinas.datos import preparar_para_predecir
 from propinas.versiones import cargar_version
+
+
+def probabilidad(texto: str) -> float:
+    valor = float(texto)
+    if not 0 <= valor <= 1:
+        raise argparse.ArgumentTypeError("el umbral debe estar entre 0 y 1")
+    return valor
 
 
 def leer_argumentos(argv=None):
@@ -28,7 +36,8 @@ def leer_argumentos(argv=None):
     p.add_argument("--modelos", default="modelos", help="Carpeta de versiones (por defecto 'modelos').")
     p.add_argument("--version", help="Versión a usar, por ejemplo v1. Por defecto, la actual del registro.")
     p.add_argument("--modelo", help="Ruta directa a un .joblib (por ejemplo, el de la Fase 1).")
-    p.add_argument("--umbral", type=float, default=0.5, help="Probabilidad mínima para predecir 1 (por defecto 0.5).")
+    p.add_argument("--umbral", type=probabilidad, default=0.5,
+                   help="Probabilidad mínima para predecir 1, entre 0 y 1 (por defecto 0.5).")
     return p.parse_args(argv)
 
 
@@ -53,6 +62,7 @@ def main(argv=None) -> pd.DataFrame:
     resultado = predecir(pipe, viajes, args.umbral)
 
     if args.salida:
+        Path(args.salida).parent.mkdir(parents=True, exist_ok=True)
         resultado.to_csv(args.salida, index=False)
         print(f"{len(resultado)} predicciones guardadas en {args.salida}")
     else:

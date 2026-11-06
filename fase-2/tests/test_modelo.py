@@ -56,7 +56,7 @@ def test_predict_sobre_el_ejemplo(carpeta_modelos, tmp_path):
 
 def test_umbral_de_decision(carpeta_modelos):
     todos = predict.main(["--entrada", str(EJEMPLO), "--modelos", str(carpeta_modelos), "--umbral", "0"])
-    ninguno = predict.main(["--entrada", str(EJEMPLO), "--modelos", str(carpeta_modelos), "--umbral", "1.01"])
+    ninguno = predict.main(["--entrada", str(EJEMPLO), "--modelos", str(carpeta_modelos), "--umbral", "1"])
     assert todos["propina_generosa_predicha"].eq(1).all()
     assert ninguno["propina_generosa_predicha"].eq(0).all()
 

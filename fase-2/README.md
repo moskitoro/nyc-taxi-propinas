@@ -1,5 +1,7 @@
 # Fase 2 – Scripts y Docker
 
+[![Pruebas](https://github.com/moskitoro/nyc-taxi-propinas/actions/workflows/pruebas.yml/badge.svg)](https://github.com/moskitoro/nyc-taxi-propinas/actions/workflows/pruebas.yml)
+
 Convierte el modelo de la Fase 1 en una **aplicación de línea de comandos** que puede entrenarse y generar predicciones sin abrir el notebook. No es un modelo nuevo: `train.py` reproduce exactamente el procesamiento y el modelo elegido en la Fase 1 (Gradient Boosting con `class_weight="balanced"` y los mismos hiperparámetros).
 
 ## Estructura
@@ -9,6 +11,7 @@ fase-2/
 ├── train.py                  # entrena y guarda una nueva versión del modelo
 ├── predict.py                # predice a partir de un CSV de viajes
 ├── Dockerfile                # imagen para entrenar, predecir y probar
+├── .dockerignore             # deja por fuera de la imagen los datos y archivos temporales
 ├── requirements.txt          # versiones fijadas (las mismas de la Fase 1)
 ├── propinas/                 # código compartido por train.py y predict.py
 │   ├── datos.py              #   carga, limpieza, variables y control de fuga
@@ -23,8 +26,10 @@ fase-2/
 │   └── viajes_ejemplo.csv    # 5 viajes para probar predict.py
 └── tests/                    # pruebas con pytest
     ├── conftest.py           #   datos sintéticos (no necesita descargar Kaggle)
-    ├── test_datos.py
-    └── test_modelo.py
+    ├── test_datos.py         #   limpieza, variables y control de fuga
+    ├── test_modelo.py        #   entrenamiento, versionado y predicción
+    ├── test_versiones_publicadas.py  # v1 y v2 del repo dan las predicciones documentadas
+    └── test_cli.py           #   comandos en la terminal y mensajes de error
 ```
 
 ## Instalación (sin Docker)
@@ -57,6 +62,8 @@ Columnas obligatorias de entrada: `VendorID`, `tpep_pickup_datetime`, `tpep_drop
 
 La salida agrega `prob_propina_generosa` (probabilidad entre 0 y 1) y `propina_generosa_predicha` (0 o 1). A diferencia del entrenamiento, `predict.py` **no elimina filas**: los valores imposibles (coordenadas en 0, distancia 0) se tratan como faltantes y el pipeline los imputa.
 
+Antes de predecir, `predict.py` revisa el archivo y, si hay un problema, lo explica sin volcados de Python: columnas faltantes, archivo sin viajes, valores que no son números o fechas no válidas (indicando las filas). También rechaza un `--umbral` fuera de [0, 1]. Si la carpeta de `--salida` no existe, la crea.
+
 ### Entrenar
 
 Necesita el archivo `yellow_tripdata_2015-01.csv` (2 GB) de [Kaggle](https://www.kaggle.com/datasets/elemento/nyc-yellow-taxi-trip-data).
@@ -69,8 +76,8 @@ python train.py --descargar           # lo descarga con kagglehub
 | Opción | Descripción |
 |---|---|
 | `--datos` / `--descargar` | Ruta al CSV, o descarga automática desde Kaggle. Una de las dos es obligatoria. |
-| `--fraccion` | Fracción de los viajes con tarjeta que se usa (por defecto 0,05, como en la Fase 1). |
-| `--prueba` | Proporción del conjunto de prueba (por defecto 0,20). |
+| `--fraccion` | Fracción de los viajes con tarjeta que se usa, mayor que 0 y hasta 1 (por defecto 0,05, como en la Fase 1). |
+| `--prueba` | Proporción del conjunto de prueba, entre 0 y 1 (por defecto 0,20). |
 | `--semilla` | Semilla aleatoria (por defecto 42). |
 | `--max-iter` | Iteraciones del Gradient Boosting (por defecto 300, como en la Fase 1). |
 | `--modelos` | Carpeta de versiones (por defecto `modelos`). |
@@ -93,8 +100,10 @@ Versiones actuales del repositorio:
 
 | Versión | Origen | Fecha | ROC-AUC prueba |
 |---|---|---|---|
-| `v1` | Modelo entrenado en la Fase 1 con el notebook (Colab) | 2026-09-30 | 0,6661 |
-| `v2` (actual) | `python train.py --descargar` en Colab | 2026-11-06 (hora UTC) | 0,6661 |
+| `v1` | Modelo entrenado en la Fase 1 con el notebook (Colab) | 2026-09-30 04:36 UTC | 0,6661 |
+| `v2` (actual) | `python train.py --descargar` en Colab | 2026-11-06 21:16 UTC | 0,6661 |
+
+Las fechas se guardan en UTC, sin depender de la zona horaria del equipo donde se entrena.
 
 Para usar una versión anterior: `python predict.py --entrada ... --version v1`. Cada nuevo entrenamiento crea `v3`, `v4`, …
 
@@ -112,15 +121,21 @@ La imagen ya incluye las versiones de `modelos/`, así que puede predecir sin mo
 docker run --rm nyc-taxi-propinas:fase2 predict.py --entrada ejemplos/viajes_ejemplo.csv
 docker run --rm nyc-taxi-propinas:fase2 predict.py --entrada ejemplos/viajes_ejemplo.csv --version v1
 
-# Entrenar (el CSV va en fase-2/datos/; la nueva versión queda en fase-2/modelos/)
+# Entrenar con un CSV propio (va en fase-2/datos/; la nueva versión queda en fase-2/modelos/)
 docker run --rm -v "$(pwd)/datos:/app/datos" -v "$(pwd)/modelos:/app/modelos" \
   nyc-taxi-propinas:fase2 train.py --datos datos/yellow_tripdata_2015-01.csv
+
+# Entrenar descargando desde Kaggle (el CSV queda guardado en fase-2/datos/kagglehub/ para la próxima vez)
+docker run --rm -v "$(pwd)/datos:/app/datos" -v "$(pwd)/modelos:/app/modelos" \
+  nyc-taxi-propinas:fase2 train.py --descargar
 
 # Pruebas
 docker run --rm nyc-taxi-propinas:fase2 -m pytest -v
 ```
 
-En Windows (PowerShell), cambie `$(pwd)` por `${PWD}`. Las carpetas `datos` y `modelos` se montan como volúmenes: así el CSV no se copia a la imagen y los modelos entrenados quedan en el computador.
+En Windows (PowerShell), cambie `$(pwd)` por `${PWD}` y la `\` del final de línea por una comilla invertida `` ` ``. Las carpetas `datos` y `modelos` se montan como volúmenes: así el CSV no se copia a la imagen, la descarga de Kaggle no se pierde al cerrar el contenedor y los modelos entrenados quedan en el computador.
+
+El contenedor corre con un usuario sin privilegios (`app`, uid 1000), no como root. En Linux, si su usuario no es el 1000 y Docker no puede escribir en las carpetas montadas, agregue `--user "$(id -u):$(id -g)"` al `docker run`.
 
 ## Pruebas
 
@@ -134,6 +149,10 @@ Las pruebas usan datos sintéticos con la misma estructura del CSV de la TLC, as
 |---|---|
 | `test_datos.py` | Umbral del 20 % (inclusivo); cálculo de duración, velocidad, hora cíclica, día y distancia a Midtown en un viaje conocido; detección de viajes al aeropuerto; coordenadas en (0, 0) convertidas en faltantes; eliminación de registros imposibles; **ninguna variable con fuga** entre las predictoras; la propina no altera las variables de entrada; predicción sin perder filas; error claro si falta una columna. |
 | `test_modelo.py` | `train.py` crea una versión con metadatos completos; el modelo supera al azar; reentrenar crea `v2` sin borrar `v1`; un modelo modificado se detecta por su sha256; `predict.py` devuelve una fila por viaje con probabilidades en [0, 1]; el umbral de decisión funciona; una versión inexistente da error. |
+| `test_versiones_publicadas.py` | `v1` y `v2` del repositorio cargan y su sha256 coincide; ambas dan exactamente las probabilidades documentadas; `v2` (train.py) tiene las mismas métricas que `v1` (Fase 1). |
+| `test_cli.py` | `train.py` y `predict.py` funcionan como comandos de terminal; valores de texto, fechas no válidas, archivo vacío o inexistente dan un mensaje claro sin traceback; argumentos fuera de rango se rechazan. |
+
+En total son **34 pruebas**. Además, GitHub Actions (`.github/workflows/pruebas.yml`) las corre en cada cambio del repositorio, construye la imagen Docker y predice con `v1` y `v2`; el resultado se ve en la insignia del inicio y en la pestaña **Actions**.
 
 ## Resultados y verificación
 
@@ -166,5 +185,6 @@ El último viaje tiene coordenadas en (0, 0): `predict.py` no lo descarta, las t
 
 | Entorno | Construcción | Pruebas | `predict.py` |
 |---|---|---|---|
-| Google Colab (Python 3.13) | — | 16 passed | `v1` y `v2` |
-| Docker Desktop en Windows (imagen `python:3.13-slim`) | `docker build` correcto en 47 s | 16 passed | `v1` y `v2` |
+| Google Colab (Python 3.13) | — | 34 passed | `v1` y `v2` |
+| Docker Desktop en Windows (imagen `python:3.13-slim`) | `docker build` correcto | 34 passed | `v1` y `v2` |
+| GitHub Actions (Ubuntu) | `docker build` en cada cambio | ver insignia | `v1` y `v2` |

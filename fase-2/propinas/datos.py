@@ -144,10 +144,35 @@ def preparar_X(d: pd.DataFrame) -> pd.DataFrame:
     return X
 
 
+COLUMNAS_FECHA = ["tpep_pickup_datetime", "tpep_dropoff_datetime"]
+
+
+def _filas(mascara: pd.Series) -> str:
+    """Números de fila como los ve una persona en el CSV (la 1 es el primer viaje)."""
+    filas = [str(i + 1) for i in np.flatnonzero(mascara.to_numpy())]
+    return ", ".join(filas[:10]) + (" ..." if len(filas) > 10 else "")
+
+
 def validar_entrada(df: pd.DataFrame) -> None:
-    faltan = [c for c in COLUMNAS_ENTRADA if c not in normalizar_columnas(df).columns]
+    """Revisa el archivo antes de predecir y explica el problema en lenguaje claro."""
+    d = normalizar_columnas(df)
+    faltan = [c for c in COLUMNAS_ENTRADA if c not in d.columns]
     if faltan:
         raise ValueError(f"Al archivo de entrada le faltan columnas: {', '.join(faltan)}")
+    if d.empty:
+        raise ValueError("El archivo de entrada no tiene viajes (solo encabezados).")
+    for col in COLUMNAS_ENTRADA:
+        if col in COLUMNAS_FECHA:
+            convertida = pd.to_datetime(d[col], errors="coerce")
+            problema = "fechas no válidas (formato esperado: AAAA-MM-DD HH:MM:SS)"
+        else:
+            convertida = pd.to_numeric(d[col], errors="coerce")
+            problema = "valores que no son números"
+        malas = convertida.isna() & d[col].notna()
+        if malas.any():
+            raise ValueError(f"La columna '{col}' tiene {problema} en las filas: {_filas(malas)}")
+        if col in COLUMNAS_FECHA and convertida.isna().any():
+            raise ValueError(f"La columna '{col}' está vacía en las filas: {_filas(convertida.isna())}")
 
 
 def preparar_para_entrenar(df_raw: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:

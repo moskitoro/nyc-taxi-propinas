@@ -15,7 +15,7 @@ import hashlib
 import json
 import platform
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import joblib
@@ -64,7 +64,7 @@ def guardar_version(pipe, metadatos: dict, carpeta: str | Path = "modelos") -> P
 
     meta = {
         "version": version,
-        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "fecha": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
         **metadatos,
         "librerias": metadatos.get("librerias") or versiones_librerias(),
         "sha256_modelo": _sha256(ruta_modelo),

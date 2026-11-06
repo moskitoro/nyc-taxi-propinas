@@ -21,18 +21,39 @@ DATASET_KAGGLE = "elemento/nyc-yellow-taxi-trip-data"
 ARCHIVO_KAGGLE = "yellow_tripdata_2015-01.csv"
 
 
+def fraccion(texto: str) -> float:
+    valor = float(texto)
+    if not 0 < valor <= 1:
+        raise argparse.ArgumentTypeError("debe ser mayor que 0 y menor o igual a 1")
+    return valor
+
+
+def proporcion_prueba(texto: str) -> float:
+    valor = float(texto)
+    if not 0 < valor < 1:
+        raise argparse.ArgumentTypeError("debe estar entre 0 y 1 (sin incluirlos)")
+    return valor
+
+
+def entero_positivo(texto: str) -> int:
+    valor = int(texto)
+    if valor < 1:
+        raise argparse.ArgumentTypeError("debe ser un entero mayor o igual a 1")
+    return valor
+
+
 def leer_argumentos(argv=None):
     p = argparse.ArgumentParser(description="Entrena el modelo de propina generosa y lo guarda versionado.")
     origen = p.add_mutually_exclusive_group(required=True)
     origen.add_argument("--datos", help="Ruta al CSV de viajes de la NYC TLC.")
     origen.add_argument("--descargar", action="store_true",
                         help=f"Descarga {ARCHIVO_KAGGLE} desde Kaggle con kagglehub.")
-    p.add_argument("--fraccion", type=float, default=0.05,
+    p.add_argument("--fraccion", type=fraccion, default=0.05,
                    help="Fracción de los viajes con tarjeta que se usa para entrenar (por defecto 0.05).")
-    p.add_argument("--prueba", type=float, default=0.20, help="Proporción del conjunto de prueba (por defecto 0.20).")
+    p.add_argument("--prueba", type=proporcion_prueba, default=0.20, help="Proporción del conjunto de prueba (por defecto 0.20).")
     p.add_argument("--semilla", type=int, default=SEMILLA)
     p.add_argument("--modelos", default="modelos", help="Carpeta donde se guardan las versiones (por defecto 'modelos').")
-    p.add_argument("--max-iter", type=int, default=HIPERPARAMETROS_FASE1["max_iter"],
+    p.add_argument("--max-iter", type=entero_positivo, default=HIPERPARAMETROS_FASE1["max_iter"],
                    help="Iteraciones del Gradient Boosting (por defecto, las de la Fase 1).")
     return p.parse_args(argv)
 
@@ -53,6 +74,9 @@ def main(argv=None) -> str:
 
     print("[2/4] Limpiando y creando variables")
     X, y = preparar_para_entrenar(df_raw)
+    if len(X) < 100 or y.nunique() < 2:
+        raise ValueError(f"Después de limpiar quedaron {len(X)} viajes válidos: no alcanza para entrenar. "
+                         "Revise el archivo o aumente --fraccion.")
     print(f"      {len(X):,} viajes válidos | {y.mean():.1%} con propina generosa")
 
     # La prueba se separa ANTES de entrenar: el preprocesamiento va dentro del Pipeline

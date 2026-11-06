@@ -3,12 +3,12 @@
   "versiones": [
     {
       "version": "v1",
-      "fecha": "2026-09-30 04:36:00",
+      "fecha": "2026-09-30 04:36:00 UTC",
       "roc_auc_prueba": 0.6661
     },
     {
       "version": "v2",
-      "fecha": "2026-11-06 21:16:32",
+      "fecha": "2026-11-06 21:16:32 UTC",
       "roc_auc_prueba": 0.6661
     }
   ]

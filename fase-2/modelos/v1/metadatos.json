@@ -1,6 +1,6 @@
 {
   "version": "v1",
-  "fecha": "2026-09-30 04:36:00",
+  "fecha": "2026-09-30 04:36:00 UTC",
   "modelo": "HistGradientBoostingClassifier (class_weight='balanced') - Gradient Boosting ajustado",
   "origen": "Fase 1: fase-1/modelo/modelo_propina_generosa.joblib, entrenado en Colab con el notebook",
   "hiperparametros": {

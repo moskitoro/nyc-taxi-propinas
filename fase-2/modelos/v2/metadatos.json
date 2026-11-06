@@ -1,6 +1,6 @@
 {
   "version": "v2",
-  "fecha": "2026-11-06 21:16:32",
+  "fecha": "2026-11-06 21:16:32 UTC",
   "modelo": "HistGradientBoostingClassifier (class_weight='balanced')",
   "hiperparametros": {
     "learning_rate": 0.1,
