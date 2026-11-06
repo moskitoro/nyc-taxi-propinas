@@ -1,0 +1,80 @@
+{
+  "version": "v2",
+  "fecha": "2026-11-06 21:16:32",
+  "modelo": "HistGradientBoostingClassifier (class_weight='balanced')",
+  "hiperparametros": {
+    "learning_rate": 0.1,
+    "max_iter": 300,
+    "max_leaf_nodes": 31,
+    "min_samples_leaf": 100,
+    "l2_regularization": 0.0
+  },
+  "umbral_propina": 0.2,
+  "umbral_decision": 0.5,
+  "objetivo": "propina_generosa",
+  "variables": [
+    "fare_amount",
+    "trip_distance",
+    "duracion_min",
+    "velocidad_mph",
+    "tarifa_por_milla",
+    "extra",
+    "tolls_amount",
+    "passenger_count",
+    "hora_sin",
+    "hora_cos",
+    "dia_semana",
+    "fin_de_semana",
+    "pickup_latitude",
+    "pickup_longitude",
+    "dropoff_latitude",
+    "dropoff_longitude",
+    "dist_centro_recogida",
+    "dist_centro_destino",
+    "aeropuerto",
+    "coords_faltantes",
+    "vendorid",
+    "ratecodeid"
+  ],
+  "datos": {
+    "origen": "/kaggle/input/nyc-yellow-taxi-trip-data/yellow_tripdata_2015-01.csv",
+    "fraccion": 0.05,
+    "semilla": 42,
+    "filas_archivo": 12748986,
+    "filas_tarjeta": 7880666,
+    "filas_muestra": 394034,
+    "filas_entrenamiento": 313292,
+    "filas_prueba": 78323
+  },
+  "metricas_entrenamiento": {
+    "roc_auc": 0.6831,
+    "exactitud": 0.6199,
+    "exactitud_balanceada": 0.6225,
+    "precision": 0.787,
+    "recall": 0.6157,
+    "f1": 0.6909,
+    "f1_macro": 0.5987
+  },
+  "metricas_prueba": {
+    "roc_auc": 0.6661,
+    "exactitud": 0.6092,
+    "exactitud_balanceada": 0.6106,
+    "precision": 0.7778,
+    "recall": 0.6069,
+    "f1": 0.6818,
+    "f1_macro": 0.5878
+  },
+  "modelo_base_prueba": {
+    "clase_predicha": 1,
+    "exactitud": 0.6899,
+    "exactitud_balanceada": 0.5,
+    "roc_auc": 0.5
+  },
+  "librerias": {
+    "python": "3.13.18",
+    "scikit-learn": "1.6.1",
+    "pandas": "2.2.3",
+    "numpy": "2.1.3"
+  },
+  "sha256_modelo": "3b618d1c7c091003337e6821ffe8767569d99f76fb87238c5033e105158731cd"
+}
