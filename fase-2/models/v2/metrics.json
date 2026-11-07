@@ -1,0 +1,40 @@
+{
+  "version": "v2",
+  "metrica_principal": "roc_auc",
+  "umbral_decision": 0.5,
+  "conjunto_evaluacion": "prueba: 156655 viajes (20%) no usados para ajustar",
+  "modelo": {
+    "prueba": {
+      "roc_auc": 0.6685,
+      "exactitud": 0.6166,
+      "exactitud_balanceada": 0.6133,
+      "precision": 0.7778,
+      "recall": 0.6219,
+      "f1": 0.6912,
+      "f1_macro": 0.5928
+    },
+    "entrenamiento": {
+      "roc_auc": 0.6877,
+      "exactitud": 0.6275,
+      "exactitud_balanceada": 0.6271,
+      "precision": 0.7889,
+      "recall": 0.6282,
+      "f1": 0.6995,
+      "f1_macro": 0.6049
+    }
+  },
+  "modelo_base": {
+    "descripcion": "DummyClassifier(strategy='most_frequent'): siempre predice la clase más frecuente del entrenamiento (el mismo modelo base de la Fase 1)",
+    "clase_predicha": 1,
+    "prueba": {
+      "roc_auc": 0.5,
+      "exactitud": 0.6899,
+      "exactitud_balanceada": 0.5,
+      "precision": 0.6899,
+      "recall": 1.0,
+      "f1": 0.8165,
+      "f1_macro": 0.4083
+    }
+  },
+  "mejora_roc_auc_sobre_base": 0.1685
+}
