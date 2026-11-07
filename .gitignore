@@ -223,8 +223,15 @@ __marimo__/
 # Informe de preaprobación (se entrega por correo, no va en el repo)
 docs/Informe Fase 1 NYC Taxi.pdf
 
-# Datos y salidas del proyecto: el CSV de la TLC pesa 2 GB y GitHub rechaza archivos de más de 100 MB
-datos/
+# Datos y salidas del proyecto: el CSV de la TLC pesa 2 GB y GitHub rechaza archivos de más de 100 MB.
+# En Git solo quedan el CSV de ejemplo y las versiones del modelo (fase-2/models/).
 *.csv
-!fase-2/ejemplos/*.csv
-predicciones*.csv
+*.parcial
+fase-2/data/*
+!fase-2/data/ejemplo_prediccion.csv
+fase-2/outputs/*
+!fase-2/outputs/.gitkeep
+
+# Credenciales (nunca se suben)
+kaggle.json
+.kaggle/
