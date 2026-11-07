@@ -34,7 +34,7 @@ Es útil para que conductores y plataformas de transporte anticipen el comportam
 - **Balance de clases:** 69 % de los viajes tienen propina generosa y 31 % no.
 - **Valores faltantes:** el archivo casi no tiene `NaN` explícitos (solo 3 en `improvement_surcharge`), pero los faltantes vienen **codificados como coordenadas en (0, 0) o fuera de Nueva York**: el GPS no registró la ubicación. Afectan al **1,9 %** de las coordenadas de recogida y al **1,75 %** de las de destino, dentro del rango de 0,1 % a 2 % que pide el proyecto. El notebook los convierte en `NaN` y los imputa dentro del pipeline (ver sección 4, *Calidad de datos*).
 
-Los datos no se suben al repositorio por su tamaño: el notebook los descarga automáticamente desde Kaggle.
+Los datos no se suben al repositorio por su tamaño: el notebook los descarga automáticamente desde Kaggle, y en la Fase 2 se ubican en `fase-2/data/` (ver `fase-2/README.md`, sección 5).
 
 ## 3. Estructura del repositorio
 
@@ -49,13 +49,15 @@ nyc-taxi-propinas/
 │       ├── modelo_propina_generosa.joblib   # pipeline entrenado (preprocesamiento + modelo)
 │       └── metricas.json                    # métricas, variables y versiones
 └── fase-2/                             # scripts y Docker (ver fase-2/README.md)
-    ├── train.py                        # entrena y guarda una nueva versión del modelo
-    ├── predict.py                      # predice desde la línea de comandos
-    ├── Dockerfile
-    ├── requirements.txt
-    ├── propinas/                       # código compartido (datos, modelo, versionado)
-    ├── modelos/                        # versiones del modelo (v1 = Fase 1, v2 = train.py)
-    ├── ejemplos/viajes_ejemplo.csv
+    ├── train.py                        # entrena y guarda una versión del modelo
+    ├── predict.py                      # predice con una versión guardada
+    ├── descargar_datos.py              # (opcional) descarga el CSV de Kaggle a data/
+    ├── Dockerfile, .dockerignore
+    ├── requirements.txt                # versiones fijas
+    ├── propinas/                       # lógica compartida (datos, variables, modelo, versiones)
+    ├── data/ejemplo_prediccion.csv     # 5 viajes para probar predict.py
+    ├── models/                         # v1 y v2: modelo.joblib, metrics.json, metadata.json
+    ├── outputs/                        # predicciones generadas
     └── tests/                          # pruebas con pytest
 ```
 
@@ -167,27 +169,21 @@ probabilidad = modelo.predict_proba(X)[:, 1]   # X con las variables de la secci
 
 ## 5. Fase 2 – Scripts y Docker
 
-El modelo de la Fase 1 se convirtió en una aplicación de línea de comandos. Las instrucciones completas están en [`fase-2/README.md`](fase-2/README.md).
+El modelo de la Fase 1 se convirtió en una aplicación de línea de comandos que entrena y predice sin abrir el notebook. Las instrucciones completas, las correcciones respecto a la Fase 1, los resultados y la evidencia están en [`fase-2/README.md`](fase-2/README.md). La versión entregada es la etiqueta de Git **`entrega-2`**.
 
 | Entregable | Archivo |
 |---|---|
 | Entrenamiento | `fase-2/train.py` |
 | Predicción | `fase-2/predict.py` |
-| Contenedor | `fase-2/Dockerfile` |
-| Versionado del modelo | `fase-2/modelos/` (`registro.json` + una carpeta por versión con su `metadatos.json` y sha256) |
-| Reproducibilidad | `train.py` reproduce exactamente las métricas de la Fase 1 (ROC-AUC 0,6661); verificado en Colab y en Docker |
-| Pruebas | `fase-2/tests/` (34 pruebas con pytest), corridas automáticamente por GitHub Actions en cada cambio |
+| Contenedor | `fase-2/Dockerfile` y `fase-2/.dockerignore` |
+| Versiones del modelo | `fase-2/models/v1` y `fase-2/models/v2`, cada una con `modelo.joblib`, `metrics.json` y `metadata.json` |
+| Pruebas | `fase-2/tests/` (pytest), también corridas por GitHub Actions en cada cambio |
 
-Uso rápido:
+Uso rápido (desde `fase-2`, Python 3.13):
 
 ```bash
-cd fase-2
 pip install -r requirements.txt
-python predict.py --entrada ejemplos/viajes_ejemplo.csv      # usa la versión actual (v2)
-python train.py --descargar                                   # entrena y crea una versión nueva (v3)
-python -m pytest -v                                           # pruebas
-
-docker build -t nyc-taxi-propinas:fase2 .
-docker run --rm nyc-taxi-propinas:fase2 predict.py --entrada ejemplos/viajes_ejemplo.csv
-docker run --rm nyc-taxi-propinas:fase2 -m pytest -v
+python train.py --data data/yellow_tripdata_2015-01.csv --target propina_generosa --output-dir models --version v3 --seed 42
+python predict.py --model models/v1/modelo.joblib --input data/ejemplo_prediccion.csv --output outputs/predicciones.csv
+python -m pytest -v
 ```

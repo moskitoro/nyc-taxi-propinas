@@ -1,6 +1,8 @@
 """Datos sintéticos con la misma estructura del CSV de la NYC TLC.
 
-Las pruebas no necesitan descargar los 2 GB de Kaggle.
+Las pruebas no descargan nada: generan unos miles de viajes falsos (pero con
+señal que aprender) y entrenan en carpetas temporales (tmp_path), sin tocar
+las versiones de models/.
 """
 import sys
 from pathlib import Path
@@ -11,6 +13,8 @@ import pytest
 
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ))
+
+EJEMPLO = RAIZ / "data" / "ejemplo_prediccion.csv"
 
 
 def generar_viajes(n: int = 6000, semilla: int = 0) -> pd.DataFrame:
@@ -57,13 +61,11 @@ def csv_sintetico(tmp_path_factory) -> Path:
 
 
 @pytest.fixture(scope="session")
-def carpeta_modelos(tmp_path_factory, csv_sintetico) -> Path:
-    """Entrena una vez (rápido) y deja la versión v1 lista para las demás pruebas."""
-    import train
-    carpeta = tmp_path_factory.mktemp("modelos")
-    train.main(["--datos", str(csv_sintetico), "--fraccion", "1.0", "--max-iter", "30",
-                "--modelos", str(carpeta)])
-    return carpeta
+def entrenado(tmp_path_factory, csv_sintetico):
+    """Entrena una vez (unos segundos) la versión v1 en una carpeta temporal."""
+    from propinas.entrenamiento import entrenar
+    carpeta = tmp_path_factory.mktemp("models")
+    return entrenar(csv_sintetico, carpeta, version="v1", fraccion=1.0, max_iter=30, informar=lambda _: None)
 
 
 @pytest.fixture

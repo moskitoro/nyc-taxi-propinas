@@ -1,9 +1,11 @@
-# Integración continua: en cada cambio, GitHub corre las pruebas y construye la imagen Docker.
+# Integración continua (opcional en la especificación): en cada cambio, GitHub corre las
+# pruebas, construye la imagen Docker y repite dentro del contenedor el flujo de la entrega:
+# entrenar con una carpeta montada, predecir y comprobar que los archivos quedan afuera.
 name: Pruebas
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
   workflow_dispatch:
 
@@ -32,13 +34,34 @@ jobs:
     defaults:
       run:
         working-directory: fase-2
+    env:
+      IMAGEN: nyc-taxi-propinas:fase2
     steps:
       - uses: actions/checkout@v4
       - name: Construir la imagen
-        run: docker build -t nyc-taxi-propinas:fase2 .
+        run: docker build --build-arg GIT_COMMIT=${{ github.sha }} -t $IMAGEN .
       - name: Pruebas dentro del contenedor
-        run: docker run --rm nyc-taxi-propinas:fase2 -m pytest -q
-      - name: Predecir con la versión actual
-        run: docker run --rm nyc-taxi-propinas:fase2 predict.py --entrada ejemplos/viajes_ejemplo.csv
-      - name: Predecir con la versión de la Fase 1
-        run: docker run --rm nyc-taxi-propinas:fase2 predict.py --entrada ejemplos/viajes_ejemplo.csv --version v1
+        run: docker run --rm $IMAGEN python -m pytest -q
+      - name: Entrenar con datos sintéticos montados y guardar la versión afuera
+        run: |
+          mkdir -p ci/data ci/models ci/outputs && chmod -R 777 ci
+          docker run --rm -v "$PWD/ci/data:/app/ci" $IMAGEN python -c "import sys; sys.path.insert(0, 'tests'); from conftest import generar_viajes; generar_viajes().to_csv('ci/datos.csv', index=False)"
+          cp data/ejemplo_prediccion.csv ci/data/
+          docker run --rm -v "$PWD/ci/data:/app/data:ro" -v "$PWD/ci/models:/app/models" $IMAGEN python train.py --data data/datos.csv --target propina_generosa --output-dir models --version v-ci --seed 42 --sample-fraction 1 --max-iter 30
+          ls -l ci/models/v-ci && test -f ci/models/v-ci/metadata.json
+      - name: Predecir con la versión entrenada y con las versiones entregadas
+        run: |
+          docker run --rm -v "$PWD/ci/data:/app/data:ro" -v "$PWD/ci/models:/app/models:ro" -v "$PWD/ci/outputs:/app/outputs" $IMAGEN python predict.py --model models/v-ci/modelo.joblib --input data/ejemplo_prediccion.csv --output outputs/predicciones.csv
+          test -s ci/outputs/predicciones.csv && cat ci/outputs/predicciones.csv
+          for v in models/*/; do
+            if [ -f "$v/modelo.joblib" ]; then
+              docker run --rm $IMAGEN python predict.py --model "${v%/}" --input data/ejemplo_prediccion.csv --output outputs/p.csv
+            fi
+          done
+      - name: Una entrada inválida termina con error y sin archivo de salida
+        run: |
+          cut -d, -f1-11,13- data/ejemplo_prediccion.csv > ci/data/sin_tarifa.csv
+          if docker run --rm -v "$PWD/ci/data:/app/data:ro" -v "$PWD/ci/models:/app/models:ro" -v "$PWD/ci/outputs:/app/outputs" $IMAGEN python predict.py --model models/v-ci --input data/sin_tarifa.csv --output outputs/invalida.csv; then
+            echo "Debió fallar"; exit 1
+          fi
+          test ! -e ci/outputs/invalida.csv

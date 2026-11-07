@@ -1,81 +1,72 @@
 """Predice si los viajes de un CSV recibirán propina generosa (>= 20 % de la tarifa).
 
-Ejemplos:
-    python predict.py --entrada ejemplos/viajes_ejemplo.csv
-    python predict.py --entrada viajes.csv --salida predicciones.csv
-    python predict.py --entrada viajes.csv --version v1
-    python predict.py --entrada viajes.csv --modelo ../fase-1/modelo/modelo_propina_generosa.joblib
-
-El CSV de entrada usa las columnas de la NYC TLC (ver COLUMNAS_ENTRADA en propinas/datos.py).
-La propina NO se necesita: si viene, se ignora.
+Uso (desde la carpeta fase-2):
+    python predict.py --model models/v1/modelo.joblib --input data/ejemplo_prediccion.csv --output outputs/predicciones.csv
 """
 from __future__ import annotations
 
 import argparse
 import sys
-from pathlib import Path
 
-import joblib
-import pandas as pd
-
-from propinas.datos import preparar_para_predecir
-from propinas.versiones import cargar_version
+from propinas.datos import COLUMNAS_ENTRADA
 
 
 def probabilidad(texto: str) -> float:
     valor = float(texto)
     if not 0 <= valor <= 1:
-        raise argparse.ArgumentTypeError("el umbral debe estar entre 0 y 1")
+        raise argparse.ArgumentTypeError("debe estar entre 0 y 1")
     return valor
 
 
-def leer_argumentos(argv=None):
-    p = argparse.ArgumentParser(description="Predice propina generosa para viajes de taxi de NYC.")
-    p.add_argument("--entrada", required=True, help="CSV con los viajes a predecir.")
-    p.add_argument("--salida", help="CSV donde guardar las predicciones. Si se omite, se muestran en pantalla.")
-    p.add_argument("--modelos", default="modelos", help="Carpeta de versiones (por defecto 'modelos').")
-    p.add_argument("--version", help="Versión a usar, por ejemplo v1. Por defecto, la actual del registro.")
-    p.add_argument("--modelo", help="Ruta directa a un .joblib (por ejemplo, el de la Fase 1).")
-    p.add_argument("--umbral", type=probabilidad, default=0.5,
-                   help="Probabilidad mínima para predecir 1, entre 0 y 1 (por defecto 0.5).")
+def leer_argumentos(argv=None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description="Predice propina generosa para viajes de taxi de NYC con una versión guardada del modelo. "
+                    "No entrena ni reajusta nada.",
+        epilog="Ejemplo: python predict.py --model models/v1/modelo.joblib "
+               "--input data/ejemplo_prediccion.csv --output outputs/predicciones.csv. "
+               f"Columnas requeridas del CSV: {', '.join(COLUMNAS_ENTRADA)}.")
+    p.add_argument("--model", required=True,
+                   help="Versión a usar: el archivo (models/v1/modelo.joblib) o su carpeta (models/v1).")
+    p.add_argument("--input", required=True,
+                   help="CSV con los viajes. No necesita la propina ni la variable objetivo.")
+    p.add_argument("--output", required=True,
+                   help="CSV donde se guardan las predicciones (si la carpeta no existe, se crea).")
+    p.add_argument("--threshold", type=probabilidad, default=0.5,
+                   help="Probabilidad mínima para predecir 1 (propina generosa), entre 0 y 1 (por defecto 0.5).")
     return p.parse_args(argv)
 
 
-def predecir(pipe, viajes: pd.DataFrame, umbral: float = 0.5) -> pd.DataFrame:
-    X = preparar_para_predecir(viajes)
-    salida = viajes.copy()
-    salida["prob_propina_generosa"] = pipe.predict_proba(X)[:, 1].round(4)
-    salida["propina_generosa_predicha"] = (salida["prob_propina_generosa"] >= umbral).astype(int)
-    return salida
-
-
-def main(argv=None) -> pd.DataFrame:
+def main(argv=None):
     args = leer_argumentos(argv)
-    if args.modelo:
-        pipe, origen = joblib.load(args.modelo), args.modelo
-    else:
-        pipe, meta = cargar_version(args.modelos, args.version)
-        origen = f"{args.modelos}/{meta['version']} (entrenado {meta['fecha']})"
-    print(f"Modelo: {origen}")
+    from propinas.datos import leer_csv_prediccion
+    from propinas.prediccion import guardar_predicciones, predecir
+    from propinas.versiones import cargar_modelo
 
-    viajes = pd.read_csv(args.entrada)
-    resultado = predecir(pipe, viajes, args.umbral)
-
-    if args.salida:
-        Path(args.salida).parent.mkdir(parents=True, exist_ok=True)
-        resultado.to_csv(args.salida, index=False)
-        print(f"{len(resultado)} predicciones guardadas en {args.salida}")
+    pipe, meta = cargar_modelo(args.model)
+    if meta:
+        print(f"Modelo: {args.model} (versión {meta['version']}, creada {meta['fecha_creacion']})")
     else:
-        cols = ["fare_amount", "trip_distance", "prob_propina_generosa", "propina_generosa_predicha"]
-        cols = [c for c in cols if c in resultado.columns]
-        print(resultado[cols].to_string(index=False))
-    generosas = resultado["propina_generosa_predicha"].mean()
-    print(f"Viajes con propina generosa predicha: {generosas:.0%}")
+        print(f"Modelo: {args.model} (sin metadata.json: no se pudo verificar su sha256)")
+
+    viajes, ignoradas = leer_csv_prediccion(args.input)
+    if ignoradas:
+        print(f"Columnas ignoradas (el modelo no las usa): {', '.join(ignoradas)}")
+    resultado = predecir(pipe, viajes, args.threshold)
+    ruta = guardar_predicciones(resultado, args.output)
+
+    print(resultado[["fila", "prediccion", "probabilidad_propina_generosa"]].head(20).to_string(index=False))
+    if len(resultado) > 20:
+        print(f"... (en pantalla solo las primeras 20 de {len(resultado)} filas)")
+    print(f"{len(resultado)} predicciones guardadas en {ruta.as_posix()}")
+    print("prediccion: 1 = propina generosa (>= 20 % de la tarifa), 0 = no generosa")
     return resultado
 
 
 if __name__ == "__main__":
     try:
         main()
-    except (FileNotFoundError, ValueError) as e:
+    except PermissionError as e:
+        sys.exit(f"Error: no hay permiso para leer o escribir {e.filename}. Si usa Docker en Linux, "
+                 'agregue --user "$(id -u):$(id -g)" al comando docker run (ver README).')
+    except (OSError, ValueError) as e:            # OSError incluye archivo inexistente y permisos
         sys.exit(f"Error: {e}")
