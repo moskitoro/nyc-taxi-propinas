@@ -1,8 +1,8 @@
-"""Definición del modelo (el mismo elegido en la Fase 1) y sus métricas."""
+"""Preprocesamiento + modelo (el elegido en la Fase 1), modelo base y métricas."""
 from __future__ import annotations
 
-import numpy as np
 from sklearn.compose import ColumnTransformer
+from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import (accuracy_score, balanced_accuracy_score, f1_score,
@@ -10,31 +10,47 @@ from sklearn.metrics import (accuracy_score, balanced_accuracy_score, f1_score,
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
-from .datos import SEMILLA, VARIABLES_CATEGORICAS, VARIABLES_NUMERICAS
+from .datos import SEMILLA
+from .variables import VARIABLES_CATEGORICAS, VARIABLES_NUMERICAS
 
-# Mejores hiperparámetros encontrados en la Fase 1 (fase-1/modelo/metricas.json)
+ALGORITMO = "HistGradientBoostingClassifier (scikit-learn) dentro de un Pipeline con ColumnTransformer"
+METRICA_PRINCIPAL = "roc_auc"
+UMBRAL_DECISION = 0.5
+
+# Mejores hiperparámetros encontrados en la Fase 1 con búsqueda aleatoria y validación
+# cruzada sobre el entrenamiento (fase-1/modelo/metricas.json). No se vuelven a buscar.
 HIPERPARAMETROS_FASE1 = {
     "learning_rate": 0.1,
     "max_iter": 300,
     "max_leaf_nodes": 31,
     "min_samples_leaf": 100,
     "l2_regularization": 0.0,
+    "class_weight": "balanced",
 }
 
 
-def construir_pipeline(hiperparametros: dict | None = None) -> Pipeline:
-    """Preprocesamiento + Gradient Boosting dentro de un único Pipeline,
-    para que imputación y codificación solo aprendan del entrenamiento."""
-    params = {**HIPERPARAMETROS_FASE1, **(hiperparametros or {})}
-    prepro = ColumnTransformer([
+def construir_preprocesamiento() -> ColumnTransformer:
+    """Mediana para numéricas y one-hot para categóricas. Se ajusta dentro del Pipeline,
+    o sea, solo con los datos de entrenamiento."""
+    return ColumnTransformer([
         ("num", SimpleImputer(strategy="median"), VARIABLES_NUMERICAS),
         ("cat", OneHotEncoder(handle_unknown="ignore", sparse_output=False), VARIABLES_CATEGORICAS),
     ])
-    modelo = HistGradientBoostingClassifier(class_weight="balanced", random_state=SEMILLA, **params)
-    return Pipeline([("prepro", prepro), ("modelo", modelo)])
 
 
-def evaluar(pipe, X, y, umbral: float = 0.5) -> dict:
+def construir_pipeline(hiperparametros: dict | None = None, semilla: int = SEMILLA) -> Pipeline:
+    params = {**HIPERPARAMETROS_FASE1, **(hiperparametros or {})}
+    modelo = HistGradientBoostingClassifier(random_state=semilla, **params)
+    return Pipeline([("prepro", construir_preprocesamiento()), ("modelo", modelo)])
+
+
+def construir_modelo_base() -> Pipeline:
+    """Modelo de referencia de la Fase 1: siempre predice la clase más frecuente del entrenamiento."""
+    return Pipeline([("prepro", construir_preprocesamiento()),
+                     ("modelo", DummyClassifier(strategy="most_frequent"))])
+
+
+def evaluar(pipe, X, y, umbral: float = UMBRAL_DECISION) -> dict:
     prob = pipe.predict_proba(X)[:, 1]
     pred = (prob >= umbral).astype(int)
     return {
@@ -45,16 +61,4 @@ def evaluar(pipe, X, y, umbral: float = 0.5) -> dict:
         "recall": round(float(recall_score(y, pred, zero_division=0)), 4),
         "f1": round(float(f1_score(y, pred, zero_division=0)), 4),
         "f1_macro": round(float(f1_score(y, pred, average="macro", zero_division=0)), 4),
-    }
-
-
-def metricas_base(y_train, y_test) -> dict:
-    """Modelo de referencia: predecir siempre la clase mayoritaria del entrenamiento."""
-    clase = int(np.mean(y_train) >= 0.5)
-    pred = np.full(len(y_test), clase)
-    return {
-        "clase_predicha": clase,
-        "exactitud": round(float(accuracy_score(y_test, pred)), 4),
-        "exactitud_balanceada": round(float(balanced_accuracy_score(y_test, pred)), 4),
-        "roc_auc": 0.5,
     }

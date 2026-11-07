@@ -1,6 +1,36 @@
+# Git e integración continua
+.git
+.gitignore
+.github
+
+# Entornos virtuales y cachés
+venv/
+.venv/
+env/
 __pycache__/
 *.pyc
 .pytest_cache/
-datos/
-*.csv
-!ejemplos/*.csv
+.ipynb_checkpoints/
+
+# Credenciales (nunca van en la imagen)
+.env
+*.env
+kaggle.json
+.kaggle/
+
+# Editores y sistema operativo
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Datos y resultados: se montan como carpetas al ejecutar (solo entra el CSV de ejemplo)
+data/*
+!data/ejemplo_prediccion.csv
+outputs/*
+*.parcial
+
+# Archivos que la imagen no necesita
+README.md
+Dockerfile
+.dockerignore

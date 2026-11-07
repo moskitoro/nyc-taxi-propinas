@@ -1,24 +1,16 @@
-"""Entrena el modelo de propina generosa y guarda una nueva versión.
+"""Entrena el modelo de propina generosa y guarda una versión nueva.
 
-Ejemplos:
-    python train.py --datos datos/yellow_tripdata_2015-01.csv
-    python train.py --descargar                     # baja el CSV de Kaggle
-    python train.py --datos datos/archivo.csv --fraccion 0.02 --modelos modelos
+Uso (desde la carpeta fase-2):
+    python train.py --data data/yellow_tripdata_2015-01.csv --target propina_generosa --output-dir models --version v1 --seed 42
 """
 from __future__ import annotations
 
 import argparse
+import shlex
 import sys
-import time
 
-from sklearn.model_selection import train_test_split
-
-from propinas.datos import OBJETIVO, SEMILLA, UMBRAL_PROPINA, VARIABLES, cargar_csv, preparar_para_entrenar
-from propinas.modelo import HIPERPARAMETROS_FASE1, construir_pipeline, evaluar, metricas_base
-from propinas.versiones import guardar_version
-
-DATASET_KAGGLE = "elemento/nyc-yellow-taxi-trip-data"
-ARCHIVO_KAGGLE = "yellow_tripdata_2015-01.csv"
+from propinas.datos import ARCHIVO_DATOS, OBJETIVO, SEMILLA
+from propinas.modelo import HIPERPARAMETROS_FASE1
 
 
 def fraccion(texto: str) -> float:
@@ -42,82 +34,62 @@ def entero_positivo(texto: str) -> int:
     return valor
 
 
-def leer_argumentos(argv=None):
-    p = argparse.ArgumentParser(description="Entrena el modelo de propina generosa y lo guarda versionado.")
-    origen = p.add_mutually_exclusive_group(required=True)
-    origen.add_argument("--datos", help="Ruta al CSV de viajes de la NYC TLC.")
-    origen.add_argument("--descargar", action="store_true",
-                        help=f"Descarga {ARCHIVO_KAGGLE} desde Kaggle con kagglehub.")
-    p.add_argument("--fraccion", type=fraccion, default=0.05,
-                   help="Fracción de los viajes con tarjeta que se usa para entrenar (por defecto 0.05).")
-    p.add_argument("--prueba", type=proporcion_prueba, default=0.20, help="Proporción del conjunto de prueba (por defecto 0.20).")
-    p.add_argument("--semilla", type=int, default=SEMILLA)
-    p.add_argument("--modelos", default="modelos", help="Carpeta donde se guardan las versiones (por defecto 'modelos').")
+def leer_argumentos(argv=None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description="Entrena el modelo de propina generosa (taxis amarillos de NYC) y guarda una "
+                    "versión con modelo.joblib, metrics.json y metadata.json.",
+        epilog=f"Ejemplo: python train.py --data data/{ARCHIVO_DATOS} --target {OBJETIVO} "
+               "--output-dir models --version v1 --seed 42")
+    p.add_argument("--data", required=True,
+                   help=f"CSV de viajes de la NYC TLC con la propina (por ejemplo data/{ARCHIVO_DATOS}).")
+    p.add_argument("--target", default=OBJETIVO, choices=[OBJETIVO],
+                   help=f"Variable objetivo. Se construye como tip_amount / fare_amount >= 0.20 "
+                        f"(por defecto {OBJETIVO}).")
+    p.add_argument("--output-dir", default="models",
+                   help="Carpeta donde se guardan las versiones (por defecto models).")
+    p.add_argument("--version",
+                   help="Identificador de la versión, por ejemplo v1. Si ya existe, se rechaza. "
+                        "Si se omite, se usa el siguiente libre (v1, v2, ...).")
+    p.add_argument("--seed", type=int, default=SEMILLA,
+                   help=f"Semilla de la muestra, la separación y el modelo (por defecto {SEMILLA}).")
+    p.add_argument("--test-size", type=proporcion_prueba, default=0.20,
+                   help="Proporción del conjunto de prueba, entre 0 y 1 (por defecto 0.20).")
+    p.add_argument("--sample-fraction", type=fraccion, default=0.05,
+                   help="Fracción de los viajes con tarjeta que se usa, mayor que 0 y hasta 1 "
+                        "(por defecto 0.05, como en la Fase 1).")
     p.add_argument("--max-iter", type=entero_positivo, default=HIPERPARAMETROS_FASE1["max_iter"],
-                   help="Iteraciones del Gradient Boosting (por defecto, las de la Fase 1).")
+                   help=f"Iteraciones del Gradient Boosting (por defecto {HIPERPARAMETROS_FASE1['max_iter']}, "
+                        "como en la Fase 1).")
     return p.parse_args(argv)
 
 
-def main(argv=None) -> str:
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
     args = leer_argumentos(argv)
-    inicio = time.time()
+    from propinas.entrenamiento import entrenar          # import pesado solo después de validar argumentos
 
-    ruta = args.datos
-    if args.descargar:
-        import kagglehub
-        print(f"Descargando {ARCHIVO_KAGGLE} desde Kaggle...")
-        ruta = kagglehub.dataset_download(DATASET_KAGGLE, path=ARCHIVO_KAGGLE)
+    r = entrenar(args.data, carpeta_salida=args.output_dir, version=args.version, objetivo=args.target,
+                 semilla=args.seed, proporcion_prueba=args.test_size, fraccion=args.sample_fraction,
+                 max_iter=args.max_iter, comando=shlex.join(["python", "train.py", *argv]))
 
-    print(f"[1/4] Cargando {ruta} (muestra del {args.fraccion:.0%} de los viajes con tarjeta)")
-    df_raw, resumen_carga = cargar_csv(ruta, fraccion=args.fraccion, semilla=args.semilla)
-    print(f"      {resumen_carga['filas_archivo']:,} filas en el archivo -> {resumen_carga['filas_muestra']:,} en la muestra")
-
-    print("[2/4] Limpiando y creando variables")
-    X, y = preparar_para_entrenar(df_raw)
-    if len(X) < 100 or y.nunique() < 2:
-        raise ValueError(f"Después de limpiar quedaron {len(X)} viajes válidos: no alcanza para entrenar. "
-                         "Revise el archivo o aumente --fraccion.")
-    print(f"      {len(X):,} viajes válidos | {y.mean():.1%} con propina generosa")
-
-    # La prueba se separa ANTES de entrenar: el preprocesamiento va dentro del Pipeline
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=args.prueba, stratify=y, random_state=args.semilla)
-
-    print(f"[3/4] Entrenando Gradient Boosting con {len(X_train):,} viajes")
-    hiper = {**HIPERPARAMETROS_FASE1, "max_iter": args.max_iter}
-    pipe = construir_pipeline(hiper)
-    pipe.fit(X_train, y_train)
-
-    met_train = evaluar(pipe, X_train, y_train)
-    met_test = evaluar(pipe, X_test, y_test)
-    base = metricas_base(y_train, y_test)
-
-    print("[4/4] Guardando versión")
-    destino = guardar_version(pipe, {
-        "modelo": "HistGradientBoostingClassifier (class_weight='balanced')",
-        "hiperparametros": hiper,
-        "umbral_propina": UMBRAL_PROPINA,
-        "umbral_decision": 0.5,
-        "objetivo": OBJETIVO,
-        "variables": VARIABLES,
-        "datos": {"origen": str(ruta), "fraccion": args.fraccion, "semilla": args.semilla, **resumen_carga,
-                  "filas_entrenamiento": len(X_train), "filas_prueba": len(X_test)},
-        "metricas_entrenamiento": met_train,
-        "metricas_prueba": met_test,
-        "modelo_base_prueba": base,
-    }, carpeta=args.modelos)
-
-    print("\n=========== RESULTADO ===========")
-    print(f"Versión guardada:     {destino}")
-    print(f"ROC-AUC prueba:       {met_test['roc_auc']:.4f}  (base 0.5000, entrenamiento {met_train['roc_auc']:.4f})")
-    print(f"Exactitud balanceada: {met_test['exactitud_balanceada']:.4f}  (base {base['exactitud_balanceada']:.4f})")
-    print(f"F1 macro:             {met_test['f1_macro']:.4f}")
-    print(f"Tiempo total:         {time.time() - inicio:,.0f} s")
-    return destino.name
+    prueba, base = r.metricas["modelo"]["prueba"], r.metricas["modelo_base"]["prueba"]
+    print("\n================ RESULTADO ================")
+    print(f"Versión:               {r.version}")
+    print(f"ROC-AUC prueba:        {prueba['roc_auc']:.4f}   (modelo base {base['roc_auc']:.4f})")
+    print(f"Exactitud balanceada:  {prueba['exactitud_balanceada']:.4f}   (modelo base {base['exactitud_balanceada']:.4f})")
+    print(f"F1 macro:              {prueba['f1_macro']:.4f}   (modelo base {base['f1_macro']:.4f})")
+    print(f"Tiempo:                {r.metadatos['duracion_entrenamiento_s']:,.0f} s")
+    print("Archivos generados:")
+    for ruta in r.rutas.values():
+        print(f"  {ruta.as_posix()}")
+    return r
 
 
 if __name__ == "__main__":
     try:
         main()
-    except (FileNotFoundError, ValueError) as e:
+    except PermissionError as e:
+        sys.exit(f"Error: no hay permiso para leer o escribir {e.filename}. Si usa Docker en Linux, "
+                 'agregue --user "$(id -u):$(id -g)" al comando docker run (ver README).')
+    except (OSError, ValueError) as e:            # OSError incluye archivo inexistente y permisos
         sys.exit(f"Error: {e}")

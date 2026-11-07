@@ -1,10 +1,11 @@
-"""Pruebas de la preparación de datos: variables, limpieza y control de fuga."""
+"""Pruebas de la preparación de datos: variable objetivo, variables, limpieza y control de fuga."""
 import numpy as np
 import pandas as pd
 import pytest
 
-from propinas.datos import (PROHIBIDAS, VARIABLES, calcular_basicas, crear_objetivo, crear_variables,
-                            filtrar_invalidos, preparar_para_entrenar, preparar_para_predecir)
+from propinas.datos import validar_columnas
+from propinas.variables import (PROHIBIDAS, VARIABLES, calcular_basicas, crear_objetivo, crear_variables,
+                                filtrar_invalidos, preparar_para_entrenar, preparar_para_predecir)
 
 
 def test_objetivo_umbral_20_por_ciento_inclusivo():
@@ -63,6 +64,18 @@ def test_prediccion_no_elimina_filas(viaje_base):
     assert len(X) == 2 and not np.isinf(X.select_dtypes("number")).any().any()
 
 
-def test_falta_una_columna_da_error_claro(viaje_base):
-    with pytest.raises(ValueError, match="fare_amount"):
-        preparar_para_predecir(viaje_base.drop(columns="fare_amount"))
+def test_fecha_vacia_deja_variables_de_tiempo_vacias_para_imputar(viaje_base):
+    d = crear_variables(calcular_basicas(viaje_base.assign(tpep_pickup_datetime=None))).iloc[0]
+    for col in ["duracion_min", "velocidad_mph", "hora_sin", "dia_semana", "fin_de_semana"]:
+        assert np.isnan(d[col]), col
+
+
+def test_categoria_vacia_o_no_vista_queda_como_menos_uno(viaje_base):
+    X = preparar_para_predecir(pd.concat([viaje_base.assign(VendorID=None), viaje_base.assign(VendorID=7)]))
+    assert X["vendorid"].tolist() == ["-1", "7"]
+
+
+def test_columnas_sin_importar_mayusculas_y_repetidas():
+    validar_columnas(["VendorID", "Fare_Amount "], ["vendorid", "fare_amount"])     # no falla
+    with pytest.raises(ValueError, match="repetidas"):
+        validar_columnas(["VendorID", "vendorid"], ["vendorid"])
