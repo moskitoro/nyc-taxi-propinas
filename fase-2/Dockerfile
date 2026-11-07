@@ -19,7 +19,7 @@ RUN useradd --create-home --uid 1000 app
 # Código, pruebas, CSV de ejemplo y versiones del modelo.
 # Los datos completos NO se copian: se montan desde el computador al ejecutar.
 COPY --chown=app:app propinas/ propinas/
-COPY --chown=app:app train.py predict.py descargar_datos.py ./
+COPY --chown=app:app train.py predict.py descargar_datos.py seleccion_modelo.py ./
 COPY --chown=app:app tests/ tests/
 COPY --chown=app:app data/ejemplo_prediccion.csv data/
 COPY --chown=app:app models/ models/

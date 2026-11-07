@@ -1,0 +1,160 @@
+{
+  "version": "v1",
+  "fecha_creacion": "2026-11-07 02:44:24 UTC",
+  "tipo_problema": "clasificación binaria",
+  "variable_objetivo": {
+    "nombre": "propina_generosa",
+    "definicion": "1 si tip_amount / fare_amount >= 0.2; 0 en otro caso",
+    "etiquetas": {
+      "0": "no generosa: propina menor al 20 % de la tarifa",
+      "1": "generosa: propina igual o mayor al 20 % de la tarifa"
+    },
+    "proporcion_clase_1": 0.6899
+  },
+  "algoritmo": "HistGradientBoostingClassifier (scikit-learn) dentro de un Pipeline con ColumnTransformer",
+  "parametros_modelo": {
+    "learning_rate": 0.1,
+    "max_iter": 300,
+    "max_leaf_nodes": 31,
+    "min_samples_leaf": 100,
+    "l2_regularization": 0.0,
+    "class_weight": "balanced"
+  },
+  "semilla": 42,
+  "variables_entrada": {
+    "vendorid": "entero (categórica: 1 o 2)",
+    "tpep_pickup_datetime": "fecha y hora AAAA-MM-DD HH:MM:SS",
+    "tpep_dropoff_datetime": "fecha y hora AAAA-MM-DD HH:MM:SS",
+    "passenger_count": "entero",
+    "trip_distance": "número decimal (millas)",
+    "pickup_longitude": "número decimal (grados)",
+    "pickup_latitude": "número decimal (grados)",
+    "ratecodeid": "entero (categórica: 1 a 6)",
+    "dropoff_longitude": "número decimal (grados)",
+    "dropoff_latitude": "número decimal (grados)",
+    "fare_amount": "número decimal (USD)",
+    "extra": "número decimal (USD)",
+    "tolls_amount": "número decimal (USD)"
+  },
+  "variables_modelo": {
+    "orden": [
+      "fare_amount",
+      "trip_distance",
+      "duracion_min",
+      "velocidad_mph",
+      "tarifa_por_milla",
+      "extra",
+      "tolls_amount",
+      "passenger_count",
+      "hora_sin",
+      "hora_cos",
+      "dia_semana",
+      "fin_de_semana",
+      "pickup_latitude",
+      "pickup_longitude",
+      "dropoff_latitude",
+      "dropoff_longitude",
+      "dist_centro_recogida",
+      "dist_centro_destino",
+      "aeropuerto",
+      "coords_faltantes",
+      "vendorid",
+      "ratecodeid"
+    ],
+    "numericas": [
+      "fare_amount",
+      "trip_distance",
+      "duracion_min",
+      "velocidad_mph",
+      "tarifa_por_milla",
+      "extra",
+      "tolls_amount",
+      "passenger_count",
+      "hora_sin",
+      "hora_cos",
+      "dia_semana",
+      "fin_de_semana",
+      "pickup_latitude",
+      "pickup_longitude",
+      "dropoff_latitude",
+      "dropoff_longitude",
+      "dist_centro_recogida",
+      "dist_centro_destino",
+      "aeropuerto",
+      "coords_faltantes"
+    ],
+    "categoricas": [
+      "vendorid",
+      "ratecodeid"
+    ],
+    "categorias_aprendidas": {
+      "vendorid": [
+        "1",
+        "2"
+      ],
+      "ratecodeid": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ]
+    }
+  },
+  "tratamiento_faltantes": {
+    "numericas": "mediana del entrenamiento (SimpleImputer dentro del Pipeline)",
+    "categoricas": "celda vacía o categoría no vista -> todas las columnas one-hot en 0",
+    "coordenadas": "fuera de Nueva York o en 0 -> faltantes; indicador coords_faltantes = 1"
+  },
+  "datos": {
+    "fuente": "Kaggle elemento/nyc-yellow-taxi-trip-data (NYC TLC, taxis amarillos)",
+    "archivo_esperado": "yellow_tripdata_2015-01.csv",
+    "archivo_usado": "yellow_tripdata_2015-01.csv",
+    "tamano_bytes": 1985964692,
+    "sha256_archivo": "48028812db0898454d93c79a4568d5486a3290bef8aa360cabea805a52404383",
+    "filtro": "payment_type = 1 (tarjeta) y fare_amount > 0",
+    "fraccion_muestra": 0.05,
+    "filas_archivo": 12748986,
+    "filas_tarjeta": 7880666,
+    "filas_muestra": 394034,
+    "filas_validas": 391615
+  },
+  "separacion": {
+    "estrategia": "train_test_split aleatorio, estratificado por la variable objetivo, hecho antes de ajustar cualquier transformación",
+    "proporcion_prueba": 0.2,
+    "filas_entrenamiento": 313292,
+    "filas_prueba": 78323,
+    "semilla": 42
+  },
+  "evaluacion": {
+    "metrica_principal": "roc_auc",
+    "umbral_decision": 0.5,
+    "roc_auc_prueba": 0.6661,
+    "roc_auc_base": 0.5,
+    "archivo_metricas": "metrics.json"
+  },
+  "entorno": {
+    "python": "3.13.18",
+    "sistema": "Linux-7.0.14-linuxkit-aarch64-with-glibc2.41",
+    "librerias": {
+      "scikit-learn": "1.6.1",
+      "pandas": "2.2.3",
+      "numpy": "2.1.3",
+      "scipy": "1.15.3",
+      "joblib": "1.5.1"
+    }
+  },
+  "dependencias": {
+    "archivo": "fase-2/requirements.txt",
+    "sha256": "cb1780476925ea4cf7e2820860eac3770ce4c0a45046e358e9ffe4101dffafff"
+  },
+  "codigo": {
+    "commit_git": "722f5a9a28b5011f918d1f47f4132babf46c6e1a",
+    "origen_commit": "variable de entorno GIT_COMMIT (imagen Docker)",
+    "cambios_sin_commit": null,
+    "huella_sha256_codigo": "ab2b0b96f4f2ce20ec768b1adee41faef44b3d1d3efe57c9eec091a65c2b8344"
+  },
+  "comando": "python train.py --data data/yellow_tripdata_2015-01.csv --target propina_generosa --output-dir models --version v1 --seed 42",
+  "duracion_entrenamiento_s": 27.2,
+  "sha256_modelo": "c944c5d1eff98f700ba335bf2a67bc44b53eb3925313118150ee8edb45a42dfb"
+}
